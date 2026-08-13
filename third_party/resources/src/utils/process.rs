@@ -69,6 +69,7 @@ pub struct Process {
     pub timestamp_last: u64,
     pub read_bytes_last: Option<u64>,
     pub write_bytes_last: Option<u64>,
+    pub blkio_delay_ticks_last: Option<u64>,
     pub gpu_usage_stats_last: BTreeMap<GpuIdentifier, GpuUsageStats>,
     pub display_name: String,
 }
@@ -156,6 +157,8 @@ impl Process {
             None
         };
 
+        let blkio_delay_ticks_last = process_data.blkio_delay_ticks.map(|_| 0);
+
         let display_name = if executable_name.starts_with(&process_data.comm) {
             executable_name.clone()
         } else {
@@ -171,6 +174,7 @@ impl Process {
             timestamp_last: 0,
             read_bytes_last,
             write_bytes_last,
+            blkio_delay_ticks_last,
             gpu_usage_stats_last: Default::default(),
             display_name,
         }
@@ -394,6 +398,25 @@ impl Process {
         }
     }
 
+    /// Fraction of the refresh interval spent waiting for synchronous block I/O.
+    #[must_use]
+    pub fn io_wait_ratio(&self) -> Option<f32> {
+        let current = self.data.blkio_delay_ticks?;
+        let previous = self.blkio_delay_ticks_last?;
+
+        if self.timestamp_last == 0 {
+            return Some(0.0);
+        }
+
+        let delay_delta = current.saturating_sub(previous) as f64;
+        let elapsed_ms = self.data.timestamp.saturating_sub(self.timestamp_last) as f64;
+        if elapsed_ms == 0.0 {
+            return Some(0.0);
+        }
+
+        Some((delay_delta * 1000.0 / (elapsed_ms * *TICK_RATE as f64)) as f32)
+    }
+
     #[must_use]
     pub fn gpu_usage(&self) -> f32 {
         let mut returned_gpu_usage = 0.0;
@@ -500,5 +523,34 @@ impl Process {
         } else {
             Some(cmdline.replace('\0', " "))
         }
+    }
+}
+
+#[cfg(test)]
+mod io_wait_tests {
+    use super::*;
+
+    fn sampled_process(current_ticks: Option<u64>, previous_ticks: Option<u64>) -> Process {
+        let data = ProcessData {
+            blkio_delay_ticks: current_ticks,
+            timestamp: 2_000,
+            ..Default::default()
+        };
+        let mut process = Process::from_process_data(data);
+        process.timestamp_last = 1_000;
+        process.blkio_delay_ticks_last = previous_ticks;
+        process
+    }
+
+    #[test]
+    fn io_wait_is_delay_delta_divided_by_wall_time() {
+        let process = sampled_process(Some((*TICK_RATE / 4) as u64), Some(0));
+        assert!((process.io_wait_ratio().unwrap() - 0.25).abs() < 0.001);
+    }
+
+    #[test]
+    fn io_wait_is_unavailable_without_delay_accounting_data() {
+        let process = sampled_process(None, None);
+        assert_eq!(process.io_wait_ratio(), None);
     }
 }

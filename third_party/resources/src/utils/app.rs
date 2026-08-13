@@ -74,6 +74,15 @@ static APP_ID_BLOCKLIST: LazyLock<HashMap<&'static str, &'static str>> = LazyLoc
     ])
 });
 
+fn aggregate_io_wait_ratios(mut ratios: impl Iterator<Item = f32>) -> Option<f32> {
+    let first = ratios.next()?;
+    Some(
+        ratios
+            .fold(first, |total, ratio| total + ratio)
+            .clamp(0.0, 1.0),
+    )
+}
+
 static RE_ENV_FILTER: Lazy<Regex> = lazy_regex!(r"env\s*\S*=\S*\s*(.*)");
 
 static RE_FLATPAK_FILTER: Lazy<Regex> = lazy_regex!(r"flatpak run .* --command=(\S*)");
@@ -456,6 +465,11 @@ impl App {
     }
 
     #[must_use]
+    pub fn io_wait_ratio(&self, apps: &AppsContext) -> Option<f32> {
+        aggregate_io_wait_ratios(self.processes_iter(apps).filter_map(Process::io_wait_ratio))
+    }
+
+    #[must_use]
     pub fn gpu_usage(&self, apps: &AppsContext) -> f32 {
         self.processes_iter(apps).map(Process::gpu_usage).sum()
     }
@@ -505,6 +519,29 @@ impl App {
 
     pub fn running_processes(&self) -> usize {
         self.processes.len()
+    }
+}
+
+#[cfg(test)]
+mod io_wait_tests {
+    use super::aggregate_io_wait_ratios;
+
+    #[test]
+    fn one_process_keeps_its_measured_wait() {
+        assert_eq!(aggregate_io_wait_ratios([0.75].into_iter()), Some(0.75));
+    }
+
+    #[test]
+    fn concurrent_process_wait_saturates_at_one_hundred_percent() {
+        assert_eq!(
+            aggregate_io_wait_ratios([0.75, 0.40].into_iter()),
+            Some(1.0)
+        );
+    }
+
+    #[test]
+    fn no_measured_process_is_unavailable() {
+        assert_eq!(aggregate_io_wait_ratios([].into_iter()), None);
     }
 }
 
@@ -801,6 +838,7 @@ impl AppsContext {
                 old_process.timestamp_last = old_process.data.timestamp;
                 old_process.read_bytes_last = old_process.data.read_bytes;
                 old_process.write_bytes_last = old_process.data.write_bytes;
+                old_process.blkio_delay_ticks_last = old_process.data.blkio_delay_ticks;
                 old_process.gpu_usage_stats_last = old_process.data.gpu_usage_stats.clone();
 
                 old_process.data = process_data.clone();

@@ -65,6 +65,9 @@ mod imp {
         write_total: Cell<i64>, // will be -1 if write data is not available
 
         #[property(get, set)]
+        io_wait: Cell<f32>, // will be -1.0 if delay accounting is unavailable
+
+        #[property(get, set)]
         gpu_usage: Cell<f32>,
 
         #[property(get, set)]
@@ -121,6 +124,7 @@ mod imp {
                 read_total: Cell::new(0),
                 write_speed: Cell::new(0.0),
                 write_total: Cell::new(0),
+                io_wait: Cell::new(-1.0),
                 gpu_usage: Cell::new(0.0),
                 enc_usage: Cell::new(0.0),
                 dec_usage: Cell::new(0.0),
@@ -253,6 +257,7 @@ impl ProcessEntry {
                 .write_bytes
                 .map_or(-1, |write_total| write_total as i64),
         );
+        self.set_io_wait(process.io_wait_ratio().unwrap_or(-1.0));
         self.set_gpu_usage(process.gpu_usage());
         self.set_enc_usage(process.enc_usage());
         self.set_dec_usage(process.dec_usage());

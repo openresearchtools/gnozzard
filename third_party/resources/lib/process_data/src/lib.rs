@@ -25,7 +25,9 @@ const STAT_PARENT_PID: usize = 3 - STAT_OFFSET;
 const STAT_USER_CPU_TIME: usize = 13 - STAT_OFFSET;
 const STAT_SYSTEM_CPU_TIME: usize = 14 - STAT_OFFSET;
 const STAT_NICE: usize = 18 - STAT_OFFSET;
+const STAT_NUM_THREADS: usize = 19 - STAT_OFFSET;
 const STAT_STARTTIME: usize = 21 - STAT_OFFSET;
+const STAT_BLKIO_DELAY_TICKS: usize = 41 - STAT_OFFSET;
 
 static USERS_CACHE: LazyLock<HashMap<libc::uid_t, String>> = LazyLock::new(|| unsafe {
     uzers::all_users()
@@ -36,6 +38,11 @@ static USERS_CACHE: LazyLock<HashMap<libc::uid_t, String>> = LazyLock::new(|| un
 static PAGESIZE: LazyLock<usize> = LazyLock::new(sysconf::pagesize);
 
 static NUM_CPUS: LazyLock<usize> = LazyLock::new(num_cpus::get);
+
+fn delay_accounting_enabled() -> bool {
+    std::fs::read_to_string("/proc/sys/kernel/task_delayacct")
+        .is_ok_and(|value| value.trim() == "1")
+}
 
 static RE_UID: Lazy<Regex> = lazy_regex!(r"Uid:\s*(\d+)");
 
@@ -181,12 +188,55 @@ pub struct ProcessData {
     pub containerization: Containerization,
     pub read_bytes: Option<u64>,
     pub write_bytes: Option<u64>,
+    /// Cumulative time spent waiting for synchronous block I/O, in kernel clock ticks.
+    pub blkio_delay_ticks: Option<u64>,
     pub timestamp: u64,
     /// Key: PCI Slot ID of the GPU
     pub gpu_usage_stats: BTreeMap<GpuIdentifier, GpuUsageStats>,
 }
 
 impl ProcessData {
+    fn stat_u64(contents: &str, index: usize) -> Option<u64> {
+        contents
+            .rsplit_once(')')?
+            .1
+            .split_whitespace()
+            .nth(index)?
+            .parse()
+            .ok()
+    }
+
+    fn thread_group_blkio_delay_ticks(
+        proc_path: &Path,
+        pid: libc::pid_t,
+        leader_ticks: u64,
+        thread_count: usize,
+    ) -> u64 {
+        if thread_count <= 1 {
+            return leader_ticks;
+        }
+
+        let mut total = leader_ticks;
+        let Ok(entries) = std::fs::read_dir(proc_path.join("task")) else {
+            return total;
+        };
+
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy() == pid.to_string() {
+                continue;
+            }
+
+            let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) else {
+                continue;
+            };
+            if let Some(ticks) = Self::stat_u64(&stat, STAT_BLKIO_DELAY_TICKS) {
+                total = total.saturating_add(ticks);
+            }
+        }
+
+        total
+    }
+
     fn sanitize_cgroup<S: AsRef<str>>(cgroup: S) -> Option<String> {
         let cgroups_v2_line = cgroup.as_ref().split('\n').find(|s| s.starts_with("0::"))?;
         if cgroups_v2_line.ends_with(".scope") {
@@ -249,9 +299,12 @@ impl ProcessData {
     pub fn all_process_data() -> Result<Vec<Self>> {
         Self::update_nvidia_stats();
 
+        // Read this once per refresh so enabling delay accounting takes effect
+        // without restarting Resources, while avoiding one sysctl read per PID.
+        let delay_accounting_enabled = delay_accounting_enabled();
         let mut process_data = vec![];
         for entry in glob("/proc/[0-9]*/").context("unable to glob")?.flatten() {
-            let data = ProcessData::try_from_path(&entry);
+            let data = ProcessData::try_from_path_inner(&entry, delay_accounting_enabled);
 
             if let Ok(data) = data {
                 process_data.push(data);
@@ -262,6 +315,13 @@ impl ProcessData {
     }
 
     pub fn try_from_path<P: AsRef<Path>>(proc_path: P) -> Result<Self> {
+        Self::try_from_path_inner(proc_path, delay_accounting_enabled())
+    }
+
+    fn try_from_path_inner<P: AsRef<Path>>(
+        proc_path: P,
+        delay_accounting_enabled: bool,
+    ) -> Result<Self> {
         let proc_path = proc_path.as_ref();
         let stat = std::fs::read_to_string(proc_path.join("stat"))?;
         let statm = std::fs::read_to_string(proc_path.join("statm"))?;
@@ -388,6 +448,24 @@ impl ProcessData {
                 .and_then(|capture| capture.as_str().parse::<u64>().ok())
         });
 
+        let blkio_delay_ticks = delay_accounting_enabled
+            .then(|| {
+                let leader_ticks = stat
+                    .get(STAT_BLKIO_DELAY_TICKS)
+                    .and_then(|value| value.parse::<u64>().ok())?;
+                let thread_count = stat
+                    .get(STAT_NUM_THREADS)
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .unwrap_or(1);
+                Some(Self::thread_group_blkio_delay_ticks(
+                    proc_path,
+                    pid,
+                    leader_ticks,
+                    thread_count,
+                ))
+            })
+            .flatten();
+
         let gpu_usage_stats = Self::gpu_usage_stats(proc_path, pid);
 
         let timestamp = unix_as_millis();
@@ -409,6 +487,7 @@ impl ProcessData {
             containerization,
             read_bytes,
             write_bytes,
+            blkio_delay_ticks,
             timestamp,
             gpu_usage_stats,
         })
@@ -686,4 +765,22 @@ pub fn unix_as_millis() -> u64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_millis() as u64
+}
+
+#[cfg(test)]
+mod delay_accounting_tests {
+    use super::*;
+
+    #[test]
+    fn parses_blkio_delay_field_after_a_command_name_containing_parenthesis() {
+        let mut fields = vec!["0"; STAT_BLKIO_DELAY_TICKS + 1];
+        fields[0] = "S";
+        fields[STAT_BLKIO_DELAY_TICKS] = "321";
+        let stat = format!("42 (worker)name) {}", fields.join(" "));
+
+        assert_eq!(
+            ProcessData::stat_u64(&stat, STAT_BLKIO_DELAY_TICKS),
+            Some(321)
+        );
+    }
 }

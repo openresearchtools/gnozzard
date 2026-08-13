@@ -58,7 +58,7 @@
       <summary>Display CPU usage in Applications view</summary>
     </key>
     <key name="apps-show-drive-read-speed" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display drive read speed in Applications view</summary>
     </key>
     <key name="apps-show-drive-read-total" type="b">
@@ -66,12 +66,16 @@
       <summary>Display drive read total in Applications view</summary>
     </key>
     <key name="apps-show-drive-write-speed" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display drive write speed in Applications view</summary>
     </key>
     <key name="apps-show-drive-write-total" type="b">
       <default>false</default>
       <summary>Display drive write total in Applications view</summary>
+    </key>
+    <key name="apps-show-io-wait" type="b">
+      <default>true</default>
+      <summary>Display block I/O wait percentage in Applications view</summary>
     </key>
     <key name="apps-show-gpu" type="b">
       <default>true</default>
@@ -114,7 +118,7 @@
       <summary>Display CPU usage in Processes view</summary>
     </key>
     <key name="processes-show-drive-read-speed" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display drive read speed in Processes view</summary>
     </key>
     <key name="processes-show-drive-read-total" type="b">
@@ -122,12 +126,16 @@
       <summary>Display drive read total in Processes view</summary>
     </key>
     <key name="processes-show-drive-write-speed" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Display drive write speed in Processes view</summary>
     </key>
     <key name="processes-show-drive-write-total" type="b">
       <default>false</default>
       <summary>Display drive write total in Processes view</summary>
+    </key>
+    <key name="processes-show-io-wait" type="b">
+      <default>true</default>
+      <summary>Display block I/O wait percentage in Processes view</summary>
     </key>
     <key name="processes-show-gpu" type="b">
       <default>true</default>

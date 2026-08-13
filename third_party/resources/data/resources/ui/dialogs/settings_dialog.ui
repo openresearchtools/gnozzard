@@ -154,6 +154,11 @@
               </object>
             </child>
             <child>
+              <object class="AdwSwitchRow" id="apps_show_io_wait_row">
+                <property name="title" translatable="yes">I/O Wait</property>
+              </object>
+            </child>
+            <child>
               <object class="AdwSwitchRow" id="apps_show_gpu_row">
                 <property name="title" translatable="yes">GPU</property>
               </object>
@@ -243,6 +248,11 @@
             <child>
               <object class="AdwSwitchRow" id="processes_show_drive_write_total_row">
                 <property name="title" translatable="yes">Drive Write Total</property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwSwitchRow" id="processes_show_io_wait_row">
+                <property name="title" translatable="yes">I/O Wait</property>
               </object>
             </child>
             <child>

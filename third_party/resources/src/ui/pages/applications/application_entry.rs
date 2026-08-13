@@ -62,6 +62,9 @@ mod imp {
         write_total: Cell<u64>,
 
         #[property(get, set)]
+        io_wait: Cell<f32>, // will be -1.0 if delay accounting is unavailable
+
+        #[property(get, set)]
         gpu_usage: Cell<f32>,
 
         #[property(get, set)]
@@ -103,6 +106,7 @@ mod imp {
                 read_total: Cell::new(0),
                 write_speed: Cell::new(0.0),
                 write_total: Cell::new(0),
+                io_wait: Cell::new(-1.0),
                 gpu_usage: Cell::new(0.0),
                 enc_usage: Cell::new(0.0),
                 dec_usage: Cell::new(0.0),
@@ -218,6 +222,7 @@ impl ApplicationEntry {
         self.set_read_total(app.read_total(apps_context));
         self.set_write_speed(app.write_speed(apps_context));
         self.set_write_total(app.write_total(apps_context));
+        self.set_io_wait(app.io_wait_ratio(apps_context).unwrap_or(-1.0));
         self.set_gpu_usage(app.gpu_usage(apps_context));
         self.set_enc_usage(app.enc_usage(apps_context));
         self.set_dec_usage(app.dec_usage(apps_context));

@@ -454,6 +454,7 @@ impl ResProcesses {
         columns.push(self.add_read_total_column(&column_view));
         columns.push(self.add_write_speed_column(&column_view));
         columns.push(self.add_write_total_column(&column_view));
+        columns.push(self.add_io_wait_column(&column_view));
         columns.push(self.add_gpu_column(&column_view));
         columns.push(self.add_gpu_mem_column(&column_view));
         columns.push(self.add_encoder_column(&column_view));
@@ -1454,6 +1455,62 @@ impl ResProcesses {
         ));
 
         write_total_col
+    }
+
+    fn add_io_wait_column(&self, column_view: &ColumnView) -> ColumnViewColumn {
+        let factory = gtk::SignalListItemFactory::new();
+        let column = gtk::ColumnViewColumn::new(Some(&i18n("I/O Wait")), Some(factory.clone()));
+        column.set_resizable(true);
+
+        factory.connect_setup(clone!(
+            #[weak(rename_to = this)]
+            self,
+            move |_factory, item| {
+                let item = item.downcast_ref::<gtk::ListItem>().unwrap();
+                let row = gtk::Inscription::new(None);
+                row.set_min_chars(7);
+                item.set_child(Some(&row));
+
+                item.property_expression("item")
+                    .chain_property::<ProcessEntry>("io_wait")
+                    .chain_closure::<String>(closure!(|_: Option<Object>, ratio: f32| {
+                        if ratio < 0.0 {
+                            i18n("N/A")
+                        } else {
+                            format!("{:.1} %", ratio * 100.0)
+                        }
+                    }))
+                    .bind(&row, "text", Widget::NONE);
+
+                this.add_gestures(item);
+            }
+        ));
+
+        factory.connect_teardown(move |_factory, item| {
+            let item = item.downcast_ref::<gtk::ListItem>().unwrap();
+            item.set_child(None::<&gtk::Inscription>);
+        });
+
+        let sorter = NumericSorter::builder()
+            .sort_order(SortType::Ascending)
+            .expression(gtk::PropertyExpression::new(
+                ProcessEntry::static_type(),
+                None::<&gtk::Expression>,
+                "io_wait",
+            ))
+            .build();
+
+        column.set_sorter(Some(&sorter));
+        column.set_visible(SETTINGS.processes_show_io_wait());
+        column_view.append_column(&column);
+
+        SETTINGS.connect_processes_show_io_wait(clone!(
+            #[weak]
+            column,
+            move |visible| column.set_visible(visible)
+        ));
+
+        column
     }
 
     fn add_gpu_column(&self, column_view: &ColumnView) -> ColumnViewColumn {
