@@ -11,24 +11,31 @@
 .gnozzard-applications-button,
 .gnozzard-task-button,
 .gnozzard-show-desktop {
-  background-color: #282828;
-  border-radius: 0;
+  transition-duration: 150ms;
+  background-color: transparent;
+  border: 3px solid transparent;
+  border-radius: 999px;
   padding: 0 10px;
-  min-height: 38px;
-  border-right: 1px solid rgba(255, 255, 255, 0.15);
   color: white;
 }
 
 .gnozzard-applications-button:hover,
+.gnozzard-applications-button:focus,
 .gnozzard-task-button:hover,
 .gnozzard-task-button:focus,
-.gnozzard-show-desktop:hover {
-  background-color: #3f3f3f;
+.gnozzard-show-desktop:hover,
+.gnozzard-show-desktop:focus {
+  background-color: rgba(255, 255, 255, 0.17);
+}
+
+.gnozzard-applications-button:active,
+.gnozzard-task-button:active,
+.gnozzard-show-desktop:active {
+  background-color: rgba(255, 255, 255, 0.28);
 }
 
 .gnozzard-task-button:active,
 .gnozzard-task-button.focused {
-  background-color: #282828;
   color: white;
   box-shadow: inset 0 -3px #ff7139;
 }
@@ -41,8 +48,6 @@
 .gnozzard-show-desktop {
   min-width: 11px;
   padding: 0 4px;
-  border-left: 1px solid rgba(255, 255, 255, 0.35);
-  border-right: 0;
 }
 
 .gnozzard-app-menu {
@@ -64,10 +69,23 @@
 }
 
 .gnozzard-settings-button {
+  transition-duration: 150ms;
+  background-color: transparent;
+  border: 3px solid transparent;
   min-width: 36px;
   min-height: 36px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 100px transparent;
+}
+
+.gnozzard-settings-button:hover,
+.gnozzard-settings-button:focus {
+  box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0.17);
+}
+
+.gnozzard-settings-button:active {
+  box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0.28);
 }
 
 .gnozzard-settings-dialog .modal-dialog-content-box {
@@ -116,7 +134,6 @@
 }
 
 .gnozzard-resources-button {
-  border-radius: 0;
   padding: 0 9px;
 }
 
