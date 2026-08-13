@@ -1,0 +1,23 @@
+name: Flatpak building test
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:gnome-47
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          manifest-path: build-aux/net.nokyan.Resources.Devel.json
+          run-tests: true
+          cache-key: flatpak-builder-${{ github.sha }}
+          upload-artifact: "false"
