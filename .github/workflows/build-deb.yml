@@ -2,16 +2,6 @@ name: Build Debian package
 
 on:
   workflow_dispatch:
-    inputs:
-      publish:
-        description: What should this run publish?
-        required: true
-        type: choice
-        default: artifact-only
-        options:
-          - artifact-only
-          - prerelease
-          - release
   push:
     branches: [main]
   pull_request:
@@ -23,9 +13,6 @@ permissions:
 jobs:
   debian-13:
     runs-on: ubuntu-24.04
-    outputs:
-      version: ${{ steps.package.outputs.version }}
-      tag: ${{ steps.package.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -66,18 +53,6 @@ jobs:
               done
             '
 
-      - name: Read package version
-        id: package
-        shell: bash
-        run: |
-          version="$(sed -n '1s/^[^(]*(\([^)]*\)).*/\1/p' debian/changelog)"
-          if [[ -z "$version" ]]; then
-            echo "Could not read the version from debian/changelog" >&2
-            exit 1
-          fi
-          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
-          printf 'tag=v%s\n' "$version" >> "$GITHUB_OUTPUT"
-
       - name: Upload Debian package artifact
         uses: actions/upload-artifact@v4
         with:
@@ -86,42 +61,3 @@ jobs:
           path: |
             dist/gnozzard_*.deb
             dist/gnozzard_*.deb.sha256
-
-  release:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish != 'artifact-only' }}
-    needs: debian-13
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - name: Download Debian package artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gnozzard-debian-13-amd64
-          path: dist
-
-      - name: Create or update GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_MODE: ${{ inputs.publish }}
-          RELEASE_TAG: ${{ needs.debian-13.outputs.tag }}
-          RELEASE_VERSION: ${{ needs.debian-13.outputs.version }}
-        shell: bash
-        run: |
-          prerelease=false
-          if [[ "$RELEASE_MODE" == prerelease ]]; then
-            prerelease=true
-          fi
-
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" \
-              --title "Gnozzard $RELEASE_VERSION" \
-              --prerelease="$prerelease"
-            gh release upload "$RELEASE_TAG" dist/* --clobber
-          else
-            gh release create "$RELEASE_TAG" dist/* \
-              --target "$GITHUB_SHA" \
-              --title "Gnozzard $RELEASE_VERSION" \
-              --generate-notes \
-              --prerelease="$prerelease"
-          fi

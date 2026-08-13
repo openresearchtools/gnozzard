@@ -30,8 +30,7 @@ application support, AppImage MIME integration, and Nautilus actions for
 launching an AppImage or adding it to Applications with one click. Local
 `.desktop` launchers can also be added to Applications, while local `.deb`
 packages get a direct **Install Debian Package…** action. The package includes
-`uidmap` and a lightly adapted fork of the GPL-3.0-or-later Resources 1.8.0
-system monitor.
+a lightly adapted fork of the GPL-3.0-or-later Resources 1.8.0 system monitor.
 
 ## Supported systems
 
@@ -78,10 +77,8 @@ The identical disposable build can be run locally with:
 ./scripts/build-in-podman.sh
 ```
 
-Every workflow run uploads the package as a GitHub Actions artifact. A manual
-run offers three publication modes: **artifact-only**, **prerelease**, and
-**release**. Only the latter two create or update a GitHub Release and attach
-the `.deb` and checksum; push and pull-request builds never publish a release.
+Every workflow run uploads the `.deb` and its checksum as a GitHub Actions
+artifact. The workflow does not publish containers or create GitHub Releases.
 
 ## Development install
 
