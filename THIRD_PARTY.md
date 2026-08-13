@@ -14,7 +14,7 @@ v1.8.0 is intentionally pinned because it supports GTK 4.10 and libadwaita
 ## Adwaita folder artwork
 
 - Upstream: https://gitlab.gnome.org/GNOME/adwaita-icon-theme
-- License: LGPL-3.0-or-later (also offered upstream under CC-BY-SA terms)
+- License: LGPL-3.0-only (also offered upstream under CC-BY-SA-3.0-US)
 - Location: `data/icons/Gnozzard`
 
 The scalable folder silhouette is GNOME Adwaita's native folder artwork with

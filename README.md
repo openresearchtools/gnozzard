@@ -30,8 +30,8 @@ application support, AppImage MIME integration, and Nautilus actions for
 launching an AppImage or adding it to Applications with one click. Local
 `.desktop` launchers can also be added to Applications, while local `.deb`
 packages get a direct **Install Debian Package…** action. The package includes
-`uidmap` and a lightly adapted fork of the GPL-3.0 Resources 1.8.0 system
-monitor.
+`uidmap` and a lightly adapted fork of the GPL-3.0-or-later Resources 1.8.0
+system monitor.
 
 ## Supported systems
 

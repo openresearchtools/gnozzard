@@ -10,18 +10,33 @@ Files: third_party/resources/*
 Copyright: 2023-2026 nokyan and Resources contributors
 License: GPL-3+
 
+Files: third_party/resources/.typos.toml
+Copyright: 2022 Emmanuele Bassi
+License: CC0-1.0
+
+Files: third_party/resources/data/net.nokyan.Resources.metainfo.xml.in.in
+Copyright: 2023-2026 nokyan and Resources contributors
+License: CC0-1.0
+
 Files: data/icons/Gnozzard/*
 Copyright: 2002-2026 GNOME Project and Adwaita icon contributors
            2026 Open Research Tools (colour modifications)
-License: LGPL-3+
+License: LGPL-3
 
-License: LGPL-3+
+License: LGPL-3
  This work may be redistributed and/or modified under the terms of the GNU
  Lesser General Public License as published by the Free Software Foundation,
- either version 3 of the License, or (at your option) any later version.
+ version 3 of the License.
  .
  On Debian systems, the complete text of the GNU Lesser General Public License
  version 3 can be found in `/usr/share/common-licenses/LGPL-3`.
+
+License: CC0-1.0
+ To the extent possible under law, the authors have waived all copyright and
+ related or neighboring rights to these files.
+ .
+ On Debian systems, the complete text of the CC0 1.0 Universal license can be
+ found in `/usr/share/common-licenses/CC0-1.0`.
 
 License: GPL-3+
  This program is free software: you can redistribute it and/or modify
