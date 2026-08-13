@@ -182,7 +182,7 @@ jobs:
           name: gnozzard-debian-13-amd64
           path: release-download
 
-      - name: Prepare versioned and latest-download assets
+      - name: Prepare latest-download asset
         shell: bash
         run: |
           set -euo pipefail
@@ -205,13 +205,7 @@ jobs:
           )
 
           mkdir -p release-assets
-          cp "$versioned_deb" release-assets/
-          cp "$versioned_deb.sha256" release-assets/
           cp "$versioned_deb" release-assets/gnozzard_amd64.deb
-          (
-            cd release-assets
-            sha256sum gnozzard_amd64.deb > gnozzard_amd64.deb.sha256
-          )
 
       - name: Publish GitHub release
         env:
