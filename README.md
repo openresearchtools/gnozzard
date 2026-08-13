@@ -51,6 +51,13 @@ wget -qO /tmp/gnozzard_amd64.deb https://github.com/openresearchtools/gnozzard/r
 APT installs any missing declared dependencies and leaves dependencies that
 are already satisfied alone. Log out and back in after installation.
 
+Alternatively, download `gnozzard_amd64.deb` from the GitHub Release and
+install the local file:
+
+```sh
+sudo apt install ./gnozzard_amd64.deb
+```
+
 The session bootstrap enables Gnozzard and Desktop Icons NG for each user
 without replacing the rest of the GNOME top bar.
 
