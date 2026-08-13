@@ -20,11 +20,102 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && 'gnozzard-manual' || format('gnozzard-{0}', github.run_id) }}
+  cancel-in-progress: false
+
 jobs:
-  debian-13:
+  prepare-release:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.publication != 'artifact-only'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.version.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Select and commit the next package version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_version="$(dpkg-parsechangelog -S Version)"
+          if [[ ! "$current_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a semantic package version, got $current_version" >&2
+            exit 1
+          fi
+
+          newest_release=""
+          while IFS= read -r released_version; do
+            if [[ ! "$released_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              continue
+            fi
+            if [[ -z "$newest_release" ]] || \
+              dpkg --compare-versions "$released_version" gt "$newest_release"; then
+              newest_release="$released_version"
+            fi
+          done < <(
+            gh release list --limit 100 --json tagName \
+              --jq '.[].tagName | select(startswith("v")) | ltrimstr("v")'
+          )
+
+          next_version="$current_version"
+          if [[ -n "$newest_release" ]] && \
+            dpkg --compare-versions "$current_version" le "$newest_release"; then
+            IFS=. read -r major minor patch <<< "$newest_release"
+            next_version="$major.$minor.$((patch + 1))"
+          fi
+
+          if [[ "$next_version" != "$current_version" ]]; then
+            temporary_changelog="$(mktemp)"
+            {
+              printf 'gnozzard (%s) unstable; urgency=medium\n\n' "$next_version"
+              printf '  * Automated release version bump.\n\n'
+              printf ' -- Open Research Tools <openresearchtools@users.noreply.github.com>  %s\n\n' "$(date -R)"
+              cat debian/changelog
+            } > "$temporary_changelog"
+            mv "$temporary_changelog" debian/changelog
+
+            git config user.name openresearchtools
+            git config user.email 229047507+openresearchtools@users.noreply.github.com
+            git add debian/changelog
+            git commit -m "Bump package version to $next_version"
+            git push origin HEAD:main
+          fi
+
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$next_version" >> "$GITHUB_OUTPUT"
+
+  debian-13:
+    needs: prepare-release
+    if: >-
+      always() &&
+      (needs.prepare-release.result == 'success' ||
+      needs.prepare-release.result == 'skipped')
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.build-context.outputs.sha }}
+      version: ${{ steps.build-context.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha || github.sha }}
+
+      - name: Record exact build source and version
+        id: build-context
+        shell: bash
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$(dpkg-parsechangelog -S Version)" >> "$GITHUB_OUTPUT"
 
       - name: Install Podman when needed
         shell: bash
@@ -82,6 +173,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.debian-13.outputs.sha }}
 
       - name: Download verified Debian package
         uses: actions/download-artifact@v4
@@ -124,6 +217,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PUBLICATION: ${{ inputs.publication }}
+          RELEASE_SHA: ${{ needs.debian-13.outputs.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -154,14 +248,14 @@ jobs:
               gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" \
                 --jq '.object.sha'
             )"
-            if [[ "$tagged_sha" != "$GITHUB_SHA" ]]; then
+            if [[ "$tagged_sha" != "$RELEASE_SHA" ]]; then
               echo "Refusing to replace $tag with different source." >&2
               echo "Increase the version in debian/changelog first." >&2
               exit 1
             fi
             gh release edit "$tag" \
               --title "$title" \
-              --target "$GITHUB_SHA" \
+              --target "$RELEASE_SHA" \
               --prerelease="$prerelease" \
               --latest="$latest"
             gh release upload "$tag" release-assets/* --clobber
@@ -169,7 +263,7 @@ jobs:
             arguments=(
               "$tag"
               release-assets/*
-              --target "$GITHUB_SHA"
+              --target "$RELEASE_SHA"
               --title "$title"
               --generate-notes
             )

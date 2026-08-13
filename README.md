@@ -92,10 +92,13 @@ artifact. Manual runs offer three publication modes: **artifact-only**,
 `releases/latest/download/gnozzard_amd64.deb` installation URL. The workflow
 does not publish containers.
 
-Before publishing changed code, increase the version at the top of
-`debian/changelog`, for example from `0.1.0` to `0.1.1`. APT uses that version
-to decide whether the downloaded package is newer. The workflow refuses to
-replace an existing version tag with different source code.
+For prerelease and release runs, the workflow checks existing GitHub Release
+versions. If the version in `debian/changelog` is not already newer, it
+increments the patch component (for example, `0.1.0` to `0.1.1`), commits that
+changelog entry to `main`, and builds that exact commit. APT uses the resulting
+internal package version to decide whether the downloaded package is newer.
+Set a higher minor or major version in the changelog before running the
+workflow when an update should be `0.2.0` or `1.0.0` rather than a patch.
 
 ## Development install
 
