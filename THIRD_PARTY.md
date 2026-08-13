@@ -10,6 +10,7 @@
 
 v1.8.0 is intentionally pinned because it supports GTK 4.10 and libadwaita
 1.6, matching Debian 13. Later upstream versions require libadwaita 1.8.
+Its AppStream metadata and `.typos.toml` retain their CC0-1.0 licences.
 
 ## Adwaita folder artwork
 
