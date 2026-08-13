@@ -41,16 +41,25 @@ is required before the package can be installed with GNOME Shell 49 or newer.
 
 ## Install the Debian package
 
-Download the `.deb` from a GitHub Actions build or GitHub Release, then run:
+To download the newest published release and install it with APT in one
+command, run:
+
+```sh
+wget -qO /tmp/gnozzard_amd64.deb https://github.com/openresearchtools/gnozzard/releases/latest/download/gnozzard_amd64.deb && sudo apt install /tmp/gnozzard_amd64.deb
+```
+
+APT installs any missing declared dependencies and leaves dependencies that
+are already satisfied alone. Log out and back in after installation.
+
+Alternatively, download a versioned `.deb` from a GitHub Actions build or
+GitHub Release, then run:
 
 ```sh
 sudo apt install ./gnozzard_0.1.0_amd64.deb
 ```
 
-APT installs any missing declared dependencies and leaves dependencies that
-are already satisfied alone. Log out and back in after installation. The
-session bootstrap enables Gnozzard and Desktop Icons NG for each user without
-replacing the rest of the GNOME top bar.
+The session bootstrap enables Gnozzard and Desktop Icons NG for each user
+without replacing the rest of the GNOME top bar.
 
 ## Build a .deb
 
@@ -78,7 +87,15 @@ The identical disposable build can be run locally with:
 ```
 
 Every workflow run uploads the `.deb` and its checksum as a GitHub Actions
-artifact. The workflow does not publish containers or create GitHub Releases.
+artifact. Manual runs offer three publication modes: **artifact-only**,
+**prerelease**, and **release**. Only release mode updates GitHub's stable
+`releases/latest/download/gnozzard_amd64.deb` installation URL. The workflow
+does not publish containers.
+
+Before publishing changed code, increase the version at the top of
+`debian/changelog`, for example from `0.1.0` to `0.1.1`. APT uses that version
+to decide whether the downloaded package is newer. The workflow refuses to
+replace an existing version tag with different source code.
 
 ## Development install
 
