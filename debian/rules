@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export CARGO_NET_OFFLINE = true
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	glib-compile-schemas extension/gnozzard@openresearchtools/schemas
+	meson setup third_party/resources/build third_party/resources \
+		--prefix=/usr --buildtype=release --wrap-mode=nodownload -Dprofile=default
+
+override_dh_auto_build:
+	meson compile -C third_party/resources/build
+
+override_dh_auto_install:
+	rm -rf debian/tmp
+	DESTDIR=$(CURDIR)/debian/tmp meson install -C third_party/resources/build
+
+override_dh_auto_clean:
+	rm -rf third_party/resources/build
+	rm -f extension/gnozzard@openresearchtools/schemas/gschemas.compiled
+	dh_auto_clean
+
+override_dh_missing:
+	dh_missing --fail-missing

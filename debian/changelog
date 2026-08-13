@@ -1,0 +1,8 @@
+gnozzard (0.1.0) unstable; urgency=medium
+
+  * Initial Debian 13 / GNOME Shell 48 package.
+  * Add classic ungrouped taskbar and Applications menu.
+  * Add AppImage and desktop shortcut integration.
+  * Bundle Resources 1.8.0.
+
+ -- Open Research Tools <openresearchtools@users.noreply.github.com>  Thu, 13 Aug 2026 12:00:00 +0100

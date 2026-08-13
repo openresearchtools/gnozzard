@@ -1,0 +1,129 @@
+#panel.gnozzard-top-panel {
+  background-color: #282828;
+}
+
+.gnozzard-panel {
+  spacing: 0;
+  padding: 0;
+  border: none;
+}
+
+.gnozzard-applications-button,
+.gnozzard-task-button,
+.gnozzard-show-desktop {
+  background-color: #282828;
+  border-radius: 0;
+  padding: 0 10px;
+  min-height: 38px;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.gnozzard-applications-button:hover,
+.gnozzard-task-button:hover,
+.gnozzard-task-button:focus,
+.gnozzard-show-desktop:hover {
+  background-color: #3f3f3f;
+}
+
+.gnozzard-task-button:active,
+.gnozzard-task-button.focused {
+  background-color: #282828;
+  color: white;
+  box-shadow: inset 0 -3px #ff7139;
+}
+
+.gnozzard-task-content,
+.gnozzard-app-row-content {
+  spacing: 7px;
+}
+
+.gnozzard-show-desktop {
+  min-width: 11px;
+  padding: 0 4px;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  border-right: 0;
+}
+
+.gnozzard-app-menu {
+  background-color: #222222;
+  border: none;
+  border-radius: 12px 12px 0 0;
+  color: white;
+  padding: 10px;
+  spacing: 8px;
+}
+
+.gnozzard-app-search {
+  margin: 0;
+}
+
+.gnozzard-menu-bottom-bar {
+  spacing: 6px;
+  margin-top: 4px;
+}
+
+.gnozzard-settings-button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.gnozzard-settings-dialog .modal-dialog-content-box {
+  spacing: 10px;
+}
+
+.gnozzard-settings-title {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.gnozzard-settings-description {
+  color: #c8c8c8;
+}
+
+.gnozzard-app-list {
+  spacing: 1px;
+}
+
+.gnozzard-app-row {
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: white;
+  text-align: left;
+}
+
+.gnozzard-app-row:hover {
+  background-color: #3f3f3f;
+}
+
+.gnozzard-app-row:focus {
+  background-color: #ff7139;
+  color: #181818;
+}
+
+.gnozzard-pinned-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.24);
+  padding-top: 7px;
+  spacing: 2px;
+}
+
+.gnozzard-pinned-title {
+  color: #c8c8c8;
+  font-size: 0.85em;
+  padding: 0 5px 3px 5px;
+}
+
+.gnozzard-resources-button {
+  border-radius: 0;
+  padding: 0 9px;
+}
+
+.gnozzard-resources-content {
+  spacing: 6px;
+}
+
+.gnozzard-destructive-text {
+  color: #ff5f57;
+}

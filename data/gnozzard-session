@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Autostart can race Shell's extension service on login. Retry briefly and then
+# leave a diagnostic in the journal rather than looping in the background.
+attempt=0
+while [ "$attempt" -lt 10 ]; do
+    if gnome-extensions enable gnozzard@openresearchtools 2>/dev/null; then
+        gnome-extensions enable ding@rastersoft.com 2>/dev/null || true
+        xdg-mime default gnozzard-appimage-launcher.desktop application/vnd.appimage 2>/dev/null || true
+        xdg-mime default gnozzard-appimage-launcher.desktop application/x-iso9660-appimage 2>/dev/null || true
+        exit 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+done
+
+echo "gnozzard: GNOME extension service was unavailable during login" >&2
+exit 0

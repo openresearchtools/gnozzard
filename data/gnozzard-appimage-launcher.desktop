@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AppImage Launcher
+Comment=Validate and launch AppImage applications
+Exec=/usr/libexec/gnozzard launch %f
+Icon=application-x-executable
+NoDisplay=true
+Terminal=false
+MimeType=application/vnd.appimage;application/x-iso9660-appimage;

@@ -1,0 +1,127 @@
+name: Build Debian package
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: What should this run publish?
+        required: true
+        type: choice
+        default: artifact-only
+        options:
+          - artifact-only
+          - prerelease
+          - release
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  debian-13:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      tag: ${{ steps.package.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Podman when needed
+        shell: bash
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes podman
+          fi
+          podman --version
+
+      - name: Build and check in Debian 13
+        shell: bash
+        run: |
+          mkdir -p dist
+          podman run --rm \
+            --volume "$PWD:/source:ro,Z" \
+            --volume "$PWD/dist:/out:Z" \
+            debian:trixie \
+            bash -euxo pipefail -c '
+              mkdir -p /work/gnozzard
+              cp -a /source/. /work/gnozzard/
+              cd /work/gnozzard
+              apt-get update
+              apt-get install --yes --no-install-recommends ca-certificates git lintian
+              ./scripts/install-build-deps.sh
+              ./scripts/vendor-cargo.sh
+              ./scripts/check.sh
+              ./scripts/build-deb.sh
+              lintian --tag-display-limit 0 /work/gnozzard_*.deb
+              cp /work/gnozzard_*.deb /out/
+              cd /out
+              for package in gnozzard_*.deb; do
+                sha256sum "$package" > "$package.sha256"
+                dpkg-deb --info "$package" >/dev/null
+                sha256sum --check "$package.sha256"
+              done
+            '
+
+      - name: Read package version
+        id: package
+        shell: bash
+        run: |
+          version="$(sed -n '1s/^[^(]*(\([^)]*\)).*/\1/p' debian/changelog)"
+          if [[ -z "$version" ]]; then
+            echo "Could not read the version from debian/changelog" >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'tag=v%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Debian package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnozzard-debian-13-amd64
+          if-no-files-found: error
+          path: |
+            dist/gnozzard_*.deb
+            dist/gnozzard_*.deb.sha256
+
+  release:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish != 'artifact-only' }}
+    needs: debian-13
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download Debian package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gnozzard-debian-13-amd64
+          path: dist
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MODE: ${{ inputs.publish }}
+          RELEASE_TAG: ${{ needs.debian-13.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.debian-13.outputs.version }}
+        shell: bash
+        run: |
+          prerelease=false
+          if [[ "$RELEASE_MODE" == prerelease ]]; then
+            prerelease=true
+          fi
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "Gnozzard $RELEASE_VERSION" \
+              --prerelease="$prerelease"
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "Gnozzard $RELEASE_VERSION" \
+              --generate-notes \
+              --prerelease="$prerelease"
+          fi

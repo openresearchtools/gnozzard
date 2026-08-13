@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.openresearchtools.gnozzard" path="/org/openresearchtools/gnozzard/">
+    <key name="panel-color" type="s">
+      <default>'#282828'</default>
+      <summary>Solid panel colour</summary>
+    </key>
+    <key name="pinned-apps" type="as">
+      <default>[]</default>
+      <summary>Desktop IDs pinned to the bottom of the Applications menu</summary>
+    </key>
+    <key name="force-single-workspace" type="b">
+      <default>true</default>
+      <summary>Use one static workspace</summary>
+    </key>
+    <key name="show-resources-button" type="b">
+      <default>true</default>
+      <summary>Replace Activities with a Resources launcher</summary>
+    </key>
+    <key name="taskbars-all-displays" type="b">
+      <default>true</default>
+      <summary>Show the complete taskbar on every connected display</summary>
+    </key>
+    <key name="toggle-applications" type="as">
+      <default><![CDATA[['<Super>a']]]></default>
+      <summary>Open the Applications menu</summary>
+    </key>
+    <key name="settings-owned" type="b"><default>false</default></key>
+    <key name="previous-dynamic-workspaces" type="b"><default>true</default></key>
+    <key name="previous-num-workspaces" type="i"><default>4</default></key>
+    <key name="previous-hot-corners" type="b"><default>true</default></key>
+    <key name="previous-button-layout" type="s"><default>'appmenu:close'</default></key>
+    <key name="previous-overlay-key" type="s"><default>'Super_L'</default></key>
+    <key name="lock-settings-owned" type="b"><default>false</default></key>
+    <key name="previous-lock-picture-uri" type="s"><default>''</default></key>
+    <key name="previous-lock-picture-options" type="s"><default>'zoom'</default></key>
+    <key name="previous-lock-color-shading-type" type="s"><default>'solid'</default></key>
+    <key name="previous-lock-primary-color" type="s"><default>'#000000'</default></key>
+    <key name="previous-lock-secondary-color" type="s"><default>'#000000'</default></key>
+  </schema>
+</schemalist>
