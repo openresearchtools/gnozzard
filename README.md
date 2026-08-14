@@ -1,10 +1,12 @@
 # Gnozzard
 
+![Gnozzard desktop and portable application workflow](docs/showcase/gnozzard-showcase.webp)
+
+<sub><em>Gnozzard is not affiliated with or endorsed by upstream projects such as <a href="https://salsa.debian.org/gnome-team" target="_blank" rel="noopener noreferrer">Debian GNOME</a>, <a href="https://gitlab.gnome.org/GNOME/gnome-shell" target="_blank" rel="noopener noreferrer">GNOME Shell</a>, <a href="https://github.com/nokyan/resources" target="_blank" rel="noopener noreferrer">Resources</a>, <a href="https://gitlab.gnome.org/GNOME/nautilus" target="_blank" rel="noopener noreferrer">Nautilus</a>, <a href="https://projects.blender.org/blender/blender" target="_blank" rel="noopener noreferrer">Blender</a>, or <a href="https://invent.kde.org/graphics/krita" target="_blank" rel="noopener noreferrer">Krita</a>. Applications are shown only to demonstrate desktop and application-menu functionality.</em></sub>
+
 Gnozzard is a simple classic GNOME desktop extension for Debian 13 (Trixie)
 and newer. It is designed for the standard Debian GNOME desktop and assumes
 that Nautilus is the file manager.
-
-![Gnozzard desktop and portable application workflow](docs/showcase/gnozzard-showcase.webp)
 
 Gnozzard keeps GNOME's clock and system indicators, replaces the Activities
 entry with a Resources launcher, and adds a permanent, solid-colour bottom
