@@ -38,6 +38,33 @@
                 </style>
                 <child type="top">
                   <object class="AdwHeaderBar">
+                    <property name="title-widget">
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="valign">center</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Resources</property>
+                            <property name="single-line-mode">True</property>
+                            <style>
+                              <class name="heading"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">&lt;a href="https://github.com/openresearchtools/gnozzard/tree/main/third_party/resources"&gt;Gnozzard’s fork&lt;/a&gt; of &lt;a href="https://github.com/nokyan/resources"&gt;Resources&lt;/a&gt;</property>
+                            <property name="use-markup">True</property>
+                            <property name="single-line-mode">True</property>
+                            <property name="ellipsize">end</property>
+                            <property name="tooltip-text">Gnozzard’s fork of Resources</property>
+                            <style>
+                              <class name="caption"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </property>
                     <child type="end">
                       <object class="GtkMenuButton">
                         <property name="menu-model">primary_menu</property>

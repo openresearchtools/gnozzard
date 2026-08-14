@@ -1,5 +1,9 @@
 # Resources
 
+> **Gnozzard fork**
+>
+> This directory contains [Gnozzard’s fork](https://github.com/openresearchtools/gnozzard/tree/main/third_party/resources) of [Resources](https://github.com/nokyan/resources). It adds experimental per-process and per-application disk I/O reporting, including drive read speed, drive write speed, and I/O-wait percentage.
+
 <a href='https://flathub.org/apps/net.nokyan.Resources'><img width='240' alt='Download on Flathub' src='https://flathub.org/api/badge?svg&locale=en'/></a>
 
 [![GNOME Circle](https://circle.gnome.org/assets/button/badge.svg

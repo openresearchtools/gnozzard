@@ -9,6 +9,60 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ExtensionPackagingTests(unittest.TestCase):
+    def test_resources_uses_symbolic_icon_and_links_to_bundled_fork(self):
+        application = (
+            ROOT / "third_party/resources/src/application.rs"
+        ).read_text()
+        resources_meson = (
+            ROOT / "third_party/resources/data/meson.build"
+        ).read_text()
+        resources_window = (
+            ROOT / "third_party/resources/data/resources/ui/window.ui"
+        ).read_text()
+        resources_readme = (
+            ROOT / "third_party/resources/README.md"
+        ).read_text()
+        symbolic_icon = (
+            ROOT
+            / "third_party/resources/data/icons/net.nokyan.Resources-symbolic.svg"
+        ).read_text()
+        self.assertIn('fill="white"', symbolic_icon)
+        self.assertIn('format!("{APP_ID}-symbolic")', application)
+        self.assertIn(
+            'application_icon(format!("{}-symbolic", config::APP_ID))',
+            application,
+        )
+        self.assertIn(
+            "Gnozzard’s fork of Resources supporting disk usage",
+            application,
+        )
+        self.assertIn(
+            "https://github.com/openresearchtools/gnozzard/tree/main/third_party/resources",
+            application,
+        )
+        self.assertIn(
+            'developer_name(i18n(FORK_ATTRIBUTION))',
+            application,
+        )
+        self.assertIn("make_about_attribution_clickable(&about)", application)
+        self.assertIn(
+            '&lt;a href="https://github.com/openresearchtools/gnozzard/tree/main/third_party/resources"&gt;Gnozzard’s fork&lt;/a&gt;',
+            resources_window,
+        )
+        self.assertIn(
+            '&lt;a href="https://github.com/nokyan/resources"&gt;Resources&lt;/a&gt;',
+            resources_window,
+        )
+        self.assertIn("> **Gnozzard fork**", resources_readme)
+        self.assertIn(
+            "experimental per-process and per-application disk I/O reporting",
+            resources_readme,
+        )
+        self.assertIn(
+            "desktop_conf.set('icon', '@0@-symbolic'.format(application_id))",
+            resources_meson,
+        )
+
     def test_required_extension_tools_are_debian_dependencies(self):
         control = (ROOT / "debian/control").read_text()
         self.assertNotIn(" gnome-extensions-app,\n", control)

@@ -11,6 +11,39 @@ use crate::ui::window::MainWindow;
 use crate::utils::os::OsInfo;
 use crate::utils::process::ProcessAction;
 
+const FORK_SOURCE_URL: &str =
+    "https://github.com/openresearchtools/gnozzard/tree/main/third_party/resources";
+const UPSTREAM_SOURCE_URL: &str = "https://github.com/nokyan/resources";
+const FORK_ATTRIBUTION: &str = "Gnozzard’s fork of Resources";
+
+fn find_label(widget: &gtk::Widget, text: &str) -> Option<gtk::Label> {
+    if let Ok(label) = widget.clone().downcast::<gtk::Label>() {
+        if label.label() == text {
+            return Some(label);
+        }
+    }
+
+    let mut child = widget.first_child();
+    while let Some(current) = child {
+        if let Some(label) = find_label(&current, text) {
+            return Some(label);
+        }
+        child = current.next_sibling();
+    }
+
+    None
+}
+
+fn make_about_attribution_clickable(about: &adw::AboutDialog) {
+    let Some(label) = find_label(about.upcast_ref(), FORK_ATTRIBUTION) else {
+        return;
+    };
+
+    label.set_markup(&format!(
+        "<a href=\"{FORK_SOURCE_URL}\">Gnozzard’s fork</a> of <a href=\"{UPSTREAM_SOURCE_URL}\">Resources</a>"
+    ));
+}
+
 mod imp {
     use std::{cell::Cell, sync::OnceLock};
 
@@ -57,7 +90,7 @@ mod imp {
             let app = self.obj();
 
             // Set icons for shell
-            gtk::Window::set_default_icon_name(APP_ID);
+            gtk::Window::set_default_icon_name(&format!("{APP_ID}-symbolic"));
 
             app.setup_css();
             app.setup_gactions();
@@ -263,13 +296,20 @@ impl Application {
     fn show_about_dialog(&self) {
         let about = adw::AboutDialog::builder()
             .application_name(i18n("Resources"))
-            .application_icon(config::APP_ID)
-            .developer_name(i18n("The Nalux Team"))
+            .application_icon(format!("{}-symbolic", config::APP_ID))
+            .developer_name(i18n(FORK_ATTRIBUTION))
             .developers(vec!["nokyan <hello@nokyan.net>"])
             .license_type(gtk::License::Gpl30)
             .version(config::VERSION)
             .website("https://apps.gnome.org/app/net.nokyan.Resources/")
             .build();
+
+        make_about_attribution_clickable(&about);
+
+        about.add_link(
+            &i18n("Gnozzard’s fork of Resources supporting disk usage"),
+            FORK_SOURCE_URL,
+        );
 
         about.add_link(
             &i18n("Report Issues"),
