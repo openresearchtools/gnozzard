@@ -20,6 +20,7 @@ The panel provides:
 - the same complete taskbar and open-window list on every connected monitor;
 - a small, text-free Show Desktop button;
 - application actions for pinning and creating desktop shortcuts;
+- a native Gnozzard app for the extension, taskbars, tray icons and desktop items;
 - one-workspace and minimise-button defaults while the extension is enabled.
 
 Gnozzard brings a classic single-workspace desktop model to modern GNOME, with
@@ -27,7 +28,7 @@ one taskbar entry per window, a simple searchable application list, and
 continued support for GNOME's top bar, system controls, and tray applications.
 
 The Debian package also installs Desktop Icons NG, AppIndicator tray support,
-the GNOME Extensions app, native AppImage and portable application support,
+the native Gnozzard app, native AppImage and portable application support,
 AppImage MIME integration, and Nautilus actions for launching an AppImage or
 adding it to Applications with one click. Local `.desktop` launchers can also
 be added to Applications, while local `.deb` packages get a direct **Install

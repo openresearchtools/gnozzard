@@ -6,6 +6,8 @@ helper/gnozzard usr/libexec/
 helper/gnozzard-deb-installer usr/libexec/
 integrations/nautilus/gnozzard.py usr/share/nautilus-python/extensions/
 data/gnozzard-appimage-launcher.desktop usr/share/applications/
+data/com.openresearchtools.GnozzardSettings.desktop usr/share/applications/
+data/gnozzard-settings usr/bin/
 data/gnozzard-appimage.xml usr/share/mime/packages/
 data/gnozzard-session usr/libexec/
 data/gnozzard-session.desktop etc/xdg/autostart/

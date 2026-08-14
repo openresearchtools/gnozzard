@@ -10,8 +10,9 @@ trap 'rm -rf "$check_tmp"' EXIT HUP INT TERM
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
 PYTHONPYCACHEPREFIX="$check_tmp/pycache" \
     python3 -m py_compile helper/gnozzard helper/gnozzard-deb-installer \
-        integrations/nautilus/gnozzard.py
-desktop-file-validate data/gnozzard-appimage-launcher.desktop data/gnozzard-session.desktop
+        integrations/nautilus/gnozzard.py data/gnozzard-settings
+desktop-file-validate data/gnozzard-appimage-launcher.desktop \
+    data/com.openresearchtools.GnozzardSettings.desktop data/gnozzard-session.desktop
 glib-compile-schemas --strict --dry-run extension/gnozzard@openresearchtools/schemas
 
 # gjs parses the complete module before resolving Shell-only runtime globals.

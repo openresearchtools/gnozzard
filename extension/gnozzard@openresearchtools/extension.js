@@ -10,7 +10,6 @@ import St from 'gi://St';
 
 import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -22,35 +21,6 @@ const CAPPED_TASK_BUTTON_WIDTH = 260;
 const MIN_TASK_BUTTON_WIDTH = 96;
 const TASK_PAGE_STEP = 5;
 const TASK_PAGE_BUTTON_WIDTH = 28;
-const EXTENSION_UUID = 'gnozzard@openresearchtools';
-
-function markSessionInitialized() {
-    const stateDirectory = GLib.build_filenamev([
-        GLib.get_user_state_dir(),
-        'gnozzard',
-    ]);
-    if (GLib.mkdir_with_parents(stateDirectory, 0o700) !== 0)
-        throw new Error(`Could not create ${stateDirectory}`);
-    const marker = GLib.build_filenamev([stateDirectory, 'session-initialized']);
-    if (!GLib.file_set_contents(marker, 'initialized\n'))
-        throw new Error(`Could not write ${marker}`);
-}
-
-function turnOffGnozzard() {
-    markSessionInitialized();
-    const process = Gio.Subprocess.new(
-        ['/usr/bin/gnome-extensions', 'disable', EXTENSION_UUID],
-        Gio.SubprocessFlags.NONE
-    );
-    process.wait_check_async(null, (subprocess, result) => {
-        try {
-            subprocess.wait_check_finish(result);
-        } catch (error) {
-            Main.notifyError('Gnozzard', `Could not turn off the extension: ${error.message}`);
-        }
-    });
-}
-
 function stopEvent() {
     return Clutter.EVENT_STOP;
 }
@@ -344,7 +314,7 @@ class ApplicationsMenu {
             style_class: 'gnozzard-settings-button',
             can_focus: true,
             reactive: true,
-            accessible_name: 'Gnozzard settings',
+            accessible_name: 'Open Gnozzard',
             child: new St.Icon({
                 icon_name: 'preferences-system-symbolic',
                 icon_size: 18,
@@ -375,12 +345,12 @@ class ApplicationsMenu {
         this.actor.add_child(this._bottomBar);
         this._signals.connect(this._settingsButton, 'clicked', () => {
             this.close();
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                const dialog = new DisplaySettingsDialog(this._settings);
-                dialog.connect('closed', () => dialog.destroy());
-                dialog.open();
-                return GLib.SOURCE_REMOVE;
-            });
+            const app = Shell.AppSystem.get_default()
+                .lookup_app('com.openresearchtools.GnozzardSettings.desktop');
+            if (app)
+                app.activate();
+            else
+                Main.notifyError('Gnozzard', 'The Gnozzard app is not installed correctly.');
         });
 
         this._signals.connect(this._overlay, 'notify::visible', () => {
@@ -551,119 +521,6 @@ class ApplicationsMenu {
         this._overlay.destroy();
     }
 }
-
-const TurnOffGnozzardDialog = GObject.registerClass(
-class TurnOffGnozzardDialog extends ModalDialog.ModalDialog {
-    _init() {
-        super._init({styleClass: 'gnozzard-settings-dialog'});
-        this.contentLayout.add_child(new St.Label({
-            style_class: 'gnozzard-settings-title',
-            text: 'Turn off Gnozzard?',
-        }));
-        const description = new St.Label({
-            style_class: 'gnozzard-settings-description',
-            text: 'The classic taskbar and Applications menu will close. To turn Gnozzard back on, open Extensions and enable Gnozzard.',
-            x_expand: true,
-        });
-        description.clutter_text.set_line_wrap(true);
-        this.contentLayout.add_child(description);
-        this.setButtons([
-            {
-                label: 'Cancel',
-                action: () => this.close(),
-                key: Clutter.KEY_Escape,
-            },
-            {
-                label: 'Turn Off Gnozzard',
-                action: () => {
-                    this.close();
-                    try {
-                        turnOffGnozzard();
-                    } catch (error) {
-                        Main.notifyError('Gnozzard', `Could not turn off the extension: ${error.message}`);
-                    }
-                },
-            },
-        ]);
-    }
-});
-
-const DisplaySettingsDialog = GObject.registerClass(
-class DisplaySettingsDialog extends ModalDialog.ModalDialog {
-    _init(settings) {
-        super._init({styleClass: 'gnozzard-settings-dialog'});
-        this._settings = settings;
-        this.contentLayout.add_child(new St.Label({
-            style_class: 'gnozzard-settings-title',
-            text: 'Taskbar displays',
-        }));
-        this.contentLayout.add_child(new St.Label({
-            style_class: 'gnozzard-settings-description',
-            text: 'Choose where the complete Gnozzard taskbar is shown.',
-        }));
-        const cappedToggle = new St.Button({
-            style_class: 'gnozzard-capped-toggle',
-            can_focus: true,
-            reactive: true,
-            toggle_mode: true,
-            checked: settings.get_boolean('capped-task-buttons'),
-        });
-        const updateCappedToggle = () => cappedToggle.set_label(
-            `Capped task buttons: ${cappedToggle.checked ? 'On' : 'Off'}`
-        );
-        updateCappedToggle();
-        cappedToggle.connect('notify::checked', () => {
-            this._settings.set_boolean('capped-task-buttons', cappedToggle.checked);
-            updateCappedToggle();
-        });
-        this.contentLayout.add_child(cappedToggle);
-        const cappedDescription = new St.Label({
-            style_class: 'gnozzard-settings-description',
-            text: 'Keep complete window buttons beside Applications and cap their maximum width. Buttons shrink equally; on a full taskbar, arrows move through windows 5 at a time.',
-            x_expand: true,
-        });
-        cappedDescription.clutter_text.set_line_wrap(true);
-        this.contentLayout.add_child(cappedDescription);
-        const turnOffButton = new St.Button({
-            style_class: 'gnozzard-turn-off-button',
-            label: 'Turn Off Gnozzard',
-            can_focus: true,
-            reactive: true,
-            x_align: Clutter.ActorAlign.START,
-        });
-        turnOffButton.connect('clicked', () => {
-            this.close();
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                const dialog = new TurnOffGnozzardDialog();
-                dialog.connect('closed', () => dialog.destroy());
-                dialog.open();
-                return GLib.SOURCE_REMOVE;
-            });
-        });
-        this.contentLayout.add_child(turnOffButton);
-        this.setButtons([
-            {
-                label: 'Cancel',
-                action: () => this.close(),
-                key: Clutter.KEY_Escape,
-            },
-            {
-                label: 'Primary display only',
-                action: () => this._select(false),
-            },
-            {
-                label: 'All displays',
-                action: () => this._select(true),
-                default: settings.get_boolean('taskbars-all-displays'),
-            },
-        ]);
-    }
-
-    _select(allDisplays) {
-        this._settings.set_boolean('taskbars-all-displays', allDisplays);
-        this.close();
-    }
-});
 
 class TaskContextMenu {
     constructor(source, window) {

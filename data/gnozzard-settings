@@ -1,0 +1,246 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import subprocess
+import sys
+from pathlib import Path
+
+import gi
+
+gi.require_version("Adw", "1")
+gi.require_version("Gtk", "4.0")
+
+from gi.repository import Adw, Gio, GLib, Gtk
+
+
+APPLICATION_ID = "com.openresearchtools.GnozzardSettings"
+GNOZZARD_UUID = "gnozzard@openresearchtools"
+DESKTOP_UUID = "ding@rastersoft.com"
+TRAY_UUID = "ubuntu-appindicators@ubuntu.com"
+SCHEMA_ID = "org.openresearchtools.gnozzard"
+SCHEMA_DIRECTORY = Path(
+    "/usr/share/gnome-shell/extensions/gnozzard@openresearchtools/schemas"
+)
+
+
+class GnozzardSettings(Adw.Application):
+    def __init__(self):
+        super().__init__(application_id=APPLICATION_ID)
+        self._window = None
+        self._refresh_source = 0
+        self._updating_extension_rows = False
+        self._extension_rows = {}
+        self._dialog = None
+
+    def do_activate(self):
+        if self._window is not None:
+            self._window.present()
+            return
+
+        self._settings = self._load_settings()
+        self._window = Adw.ApplicationWindow(
+            application=self,
+            title="Gnozzard",
+            default_width=620,
+            default_height=620,
+        )
+        self._window.connect("close-request", self._on_close_request)
+        toolbar = Adw.ToolbarView()
+        toolbar.add_top_bar(Adw.HeaderBar())
+        page = Adw.PreferencesPage()
+        toolbar.set_content(page)
+        self._window.set_content(toolbar)
+
+        extension_group = Adw.PreferencesGroup(
+            title="Desktop",
+            description="Enable or disable the Gnozzard desktop components.",
+        )
+        page.add(extension_group)
+        self._add_extension_row(
+            extension_group,
+            GNOZZARD_UUID,
+            "Gnozzard extension",
+            "Classic taskbar, Applications menu and Resources launcher.",
+        )
+        self._add_extension_row(
+            extension_group,
+            TRAY_UUID,
+            "Application tray icons",
+            "Show applications that publish status or tray icons in GNOME's top bar.",
+        )
+        self._add_extension_row(
+            extension_group,
+            DESKTOP_UUID,
+            "Desktop items",
+            "Show files, folders, portable apps and the Wastebasket on the desktop.",
+        )
+
+        taskbar_group = Adw.PreferencesGroup(
+            title="Taskbar",
+            description="Changes apply immediately when Gnozzard is running.",
+        )
+        page.add(taskbar_group)
+        all_displays = Adw.SwitchRow(
+            title="All displays",
+            subtitle="On shows the complete window list on every monitor; Off uses the primary display only. Each monitor sizes and pages independently.",
+        )
+        taskbar_group.add(all_displays)
+        self._settings.bind(
+            "taskbars-all-displays",
+            all_displays,
+            "active",
+            Gio.SettingsBindFlags.DEFAULT,
+        )
+        capped = Adw.SwitchRow(
+            title="Capped task buttons",
+            subtitle="Keep buttons beside Applications, up to 260 px wide. A full taskbar pages through windows 5 at a time.",
+        )
+        taskbar_group.add(capped)
+        self._settings.bind(
+            "capped-task-buttons",
+            capped,
+            "active",
+            Gio.SettingsBindFlags.DEFAULT,
+        )
+
+        self._refresh_extension_rows()
+        self._refresh_source = GLib.timeout_add_seconds(
+            2, self._refresh_extension_rows
+        )
+        self._window.present()
+
+    def _load_settings(self):
+        source = Gio.SettingsSchemaSource.new_from_directory(
+            str(SCHEMA_DIRECTORY),
+            Gio.SettingsSchemaSource.get_default(),
+            False,
+        )
+        schema = source.lookup(SCHEMA_ID, False)
+        if schema is None:
+            raise RuntimeError(f"GSettings schema {SCHEMA_ID} is not installed")
+        return Gio.Settings.new_full(schema, None, None)
+
+    def _add_extension_row(self, group, uuid, title, subtitle):
+        row = Adw.SwitchRow(title=title, subtitle=subtitle)
+        row.connect("notify::active", self._on_extension_row_changed, uuid)
+        group.add(row)
+        self._extension_rows[uuid] = row
+
+    def _enabled_extensions(self):
+        completed = subprocess.run(
+            ["/usr/bin/gnome-extensions", "list", "--enabled"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return set(completed.stdout.splitlines())
+
+    def _refresh_extension_rows(self):
+        try:
+            enabled = self._enabled_extensions()
+        except (OSError, subprocess.CalledProcessError) as error:
+            self._show_error("Could not read GNOME extension state", error)
+            return GLib.SOURCE_CONTINUE
+        self._updating_extension_rows = True
+        try:
+            for uuid, row in self._extension_rows.items():
+                row.set_active(uuid in enabled)
+        finally:
+            self._updating_extension_rows = False
+        return GLib.SOURCE_CONTINUE
+
+    def _on_extension_row_changed(self, row, _parameter, uuid):
+        if self._updating_extension_rows:
+            return
+        enabled = row.get_active()
+        if uuid == GNOZZARD_UUID and not enabled:
+            self._set_extension_row(GNOZZARD_UUID, True)
+            self._confirm_turn_off()
+            return
+        self._set_extension(uuid, enabled)
+
+    def _confirm_turn_off(self):
+        self._dialog = Adw.AlertDialog(
+            heading="Turn off Gnozzard?",
+            body="The classic taskbar and Applications menu will close. This settings app stays open so Gnozzard can be turned back on here.",
+        )
+        self._dialog.add_response("cancel", "Cancel")
+        self._dialog.add_response("turn-off", "Turn Off")
+        self._dialog.set_default_response("cancel")
+        self._dialog.set_close_response("cancel")
+        self._dialog.set_response_appearance(
+            "turn-off", Adw.ResponseAppearance.DESTRUCTIVE
+        )
+        self._dialog.choose(self._window, None, self._on_turn_off_response)
+
+    def _on_turn_off_response(self, dialog, result):
+        try:
+            response = dialog.choose_finish(result)
+        except GLib.Error:
+            response = "cancel"
+        self._dialog = None
+        if response == "turn-off":
+            self._mark_session_initialized()
+            self._set_extension(GNOZZARD_UUID, False)
+        else:
+            self._set_extension_row(GNOZZARD_UUID, True)
+
+    def _set_extension(self, uuid, enabled):
+        command = "enable" if enabled else "disable"
+        try:
+            subprocess.run(
+                ["/usr/bin/gnome-extensions", command, uuid],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as error:
+            self._show_error(f"Could not {command} {uuid}", error)
+        self._refresh_extension_rows()
+
+    def _set_extension_row(self, uuid, active):
+        self._updating_extension_rows = True
+        try:
+            self._extension_rows[uuid].set_active(active)
+        finally:
+            self._updating_extension_rows = False
+
+    def _mark_session_initialized(self):
+        directory = Path(GLib.get_user_state_dir()) / "gnozzard"
+        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        (directory / "session-initialized").write_text("initialized\n")
+
+    def _show_error(self, heading, error):
+        if self._window is None:
+            return
+        detail = str(error)
+        if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+            detail = error.stderr.strip()
+        self._dialog = Adw.AlertDialog(heading=heading, body=detail)
+        self._dialog.add_response("close", "Close")
+        self._dialog.set_default_response("close")
+        self._dialog.set_close_response("close")
+        self._dialog.choose(self._window, None, self._on_error_response)
+
+    def _on_error_response(self, dialog, result):
+        try:
+            dialog.choose_finish(result)
+        except GLib.Error:
+            pass
+        self._dialog = None
+
+    def _on_close_request(self, _window):
+        if self._refresh_source:
+            GLib.source_remove(self._refresh_source)
+            self._refresh_source = 0
+        self._window = None
+        return False
+
+
+def main():
+    application = GnozzardSettings()
+    return application.run(sys.argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

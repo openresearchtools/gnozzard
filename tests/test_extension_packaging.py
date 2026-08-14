@@ -11,17 +11,30 @@ ROOT = Path(__file__).resolve().parents[1]
 class ExtensionPackagingTests(unittest.TestCase):
     def test_required_extension_tools_are_debian_dependencies(self):
         control = (ROOT / "debian/control").read_text()
-        self.assertIn(" gnome-extensions-app,\n", control)
+        self.assertNotIn(" gnome-extensions-app,\n", control)
         self.assertIn(" gnome-shell-extension-appindicator,\n", control)
+        self.assertIn(" gir1.2-gtk-4.0,\n", control)
+        self.assertIn(" gir1.2-adw-1,\n", control)
 
-    def test_turn_off_action_explains_reenable_path(self):
+    def test_native_settings_app_controls_extension_components(self):
         source = (
             ROOT / "extension/gnozzard@openresearchtools/extension.js"
         ).read_text()
-        self.assertIn("Turn Off Gnozzard", source)
-        self.assertIn("open Extensions and enable Gnozzard", source)
-        self.assertIn("'disable', EXTENSION_UUID", source)
-        self.assertIn("session-initialized", source)
+        settings_app = (ROOT / "data/gnozzard-settings").read_text()
+        desktop_entry = (
+            ROOT / "data/com.openresearchtools.GnozzardSettings.desktop"
+        ).read_text()
+        install = (ROOT / "debian/install").read_text()
+        self.assertIn("com.openresearchtools.GnozzardSettings.desktop", source)
+        self.assertIn("\nName=Gnozzard\n", desktop_entry)
+        self.assertNotIn("Name=Gnozzard Settings", desktop_entry)
+        self.assertIn('title="Gnozzard"', settings_app)
+        self.assertIn('GNOZZARD_UUID = "gnozzard@openresearchtools"', settings_app)
+        self.assertIn('DESKTOP_UUID = "ding@rastersoft.com"', settings_app)
+        self.assertIn('TRAY_UUID = "ubuntu-appindicators@ubuntu.com"', settings_app)
+        self.assertIn("Turn off Gnozzard?", settings_app)
+        self.assertIn("session-initialized", settings_app)
+        self.assertIn("data/gnozzard-settings usr/bin/", install)
 
     def test_capped_mode_sizes_complete_task_buttons_without_layout_callbacks(self):
         source = (
@@ -33,7 +46,8 @@ class ExtensionPackagingTests(unittest.TestCase):
             "org.openresearchtools.gnozzard.gschema.xml"
         ).read_text()
         self.assertIn('name="capped-task-buttons"', schema)
-        self.assertIn("Capped task buttons", source)
+        settings_app = (ROOT / "data/gnozzard-settings").read_text()
+        self.assertIn("Capped task buttons", settings_app)
         self.assertIn("actorProperties.min_width = fixedWidth", source)
         self.assertIn("actorProperties.natural_width = fixedWidth", source)
         self.assertIn("const MIN_TASK_BUTTON_WIDTH = 96", source)
