@@ -157,24 +157,61 @@ export default function Home() {
                 <em>Last updated: 14 August 2026</em>
               </p>
               <p>
-                <strong>gnozzard.com</strong> does not set cookies, use
-                analytics or advertising trackers, or collect personal
-                information from visitors.
+                At <strong>gnozzard.com</strong>, your privacy is respected. The
+                site is intentionally simple and does not collect personal data
+                or use tracking technologies.
               </p>
+              <p>
+                <strong>What data we collect</strong>
+              </p>
+              <ul>
+                <li>We do not set cookies.</li>
+                <li>
+                  We do not use analytics, tracking scripts, advertising, or
+                  profiling technologies.
+                </li>
+                <li>We do not collect or process visitors’ personal information.</li>
+              </ul>
               <p>
                 <strong>Hosting and logs</strong>
               </p>
               <p>
-                The hosting provider may process limited technical request
-                data, such as an IP address and basic request information, to
-                serve and secure the site.
+                This website is hosted using{" "}
+                <a href="https://pages.github.com/" target="_blank" rel="noopener noreferrer">
+                  GitHub Pages
+                </a>
+                , a service provided by GitHub, Inc. GitHub may automatically
+                process limited technical information, such as an IP address
+                and basic request data, to operate the service securely and
+                reliably.
               </p>
               <p>
-                <strong>External links</strong>
+                For details, see the{" "}
+                <a
+                  href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  GitHub Privacy Statement
+                </a>
+                .
               </p>
               <p>
-                This site links to third-party websites. Their privacy
-                practices and content are governed by their own policies.
+                <strong>Links to other websites</strong>
+              </p>
+              <p>
+                This site may link to external websites. Gnozzard is not
+                responsible for their content or privacy practices.
+              </p>
+              <p>
+                <strong>Your rights</strong>
+              </p>
+              <p>
+                Under UK GDPR, you have rights relating to your personal data.
+                Because this site does not collect personal data, there is no
+                visitor information for us to provide or erase. Questions about
+                technical data processed by GitHub should be directed to
+                GitHub’s privacy information above.
               </p>
             </div>
           </div>

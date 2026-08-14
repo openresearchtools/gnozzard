@@ -35,5 +35,7 @@ test("renders the Gnozzard landing page", async () => {
   assert.match(html, /gnozzard-showcase\.webp/i);
   assert.match(html, /releases\/latest\/download\/gnozzard_amd64\.deb/i);
   assert.match(html, /Cookie &amp; Privacy Policy/i);
+  assert.match(html, /GitHub Pages/i);
+  assert.match(html, /GitHub Privacy Statement/i);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });

@@ -341,8 +341,28 @@ p {
   margin-bottom: 0;
 }
 
-.policy-overlay strong {
+.policy-overlay strong,
+.policy-overlay a {
   color: #fff;
+}
+
+.policy-overlay a {
+  text-decoration-color: #666;
+  text-underline-offset: 0.16em;
+}
+
+.policy-overlay a:hover {
+  text-decoration-color: var(--accent);
+}
+
+.policy-overlay ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: -0.15rem 0 0.8rem;
+  padding-left: 1.1rem;
+  color: #c4c4c4;
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 @media (hover: hover) and (pointer: fine) {
