@@ -18,6 +18,7 @@ const PANEL_HEIGHT = 40;
 const MENU_WIDTH_RATIO = 0.28;
 const MENU_MIN_WIDTH = 320;
 const MENU_MAX_WIDTH = 480;
+const CAPPED_TASK_BUTTON_WIDTH = 260;
 const EXTENSION_UUID = 'gnozzard@openresearchtools';
 
 function markSessionInitialized() {
@@ -597,6 +598,45 @@ class DisplaySettingsDialog extends ModalDialog.ModalDialog {
             style_class: 'gnozzard-settings-description',
             text: 'Choose where the complete Gnozzard taskbar is shown.',
         }));
+        const cappedRow = new St.BoxLayout({
+            style_class: 'gnozzard-setting-row',
+            x_expand: true,
+        });
+        const cappedCopy = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+        });
+        cappedCopy.add_child(new St.Label({
+            style_class: 'gnozzard-setting-label',
+            text: 'Capped task buttons',
+            x_align: Clutter.ActorAlign.START,
+        }));
+        const cappedDescription = new St.Label({
+            style_class: 'gnozzard-settings-description',
+            text: 'Keep task buttons packed beside Applications. They shrink evenly when space runs out.',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.START,
+        });
+        cappedDescription.clutter_text.set_line_wrap(true);
+        cappedCopy.add_child(cappedDescription);
+        cappedRow.add_child(cappedCopy);
+        const cappedToggle = new St.Button({
+            style_class: 'gnozzard-setting-toggle',
+            can_focus: true,
+            reactive: true,
+            toggle_mode: true,
+            checked: settings.get_boolean('capped-task-buttons'),
+        });
+        const updateCappedLabel = () => {
+            cappedToggle.set_label(cappedToggle.checked ? 'On' : 'Off');
+        };
+        updateCappedLabel();
+        cappedToggle.connect('notify::checked', () => {
+            this._settings.set_boolean('capped-task-buttons', cappedToggle.checked);
+            updateCappedLabel();
+        });
+        cappedRow.add_child(cappedToggle);
+        this.contentLayout.add_child(cappedRow);
         const turnOffButton = new St.Button({
             style_class: 'gnozzard-turn-off-button',
             label: 'Turn Off Gnozzard',
@@ -835,7 +875,6 @@ class ClassicPanel {
         });
         this.actor.add_child(this.applicationsButton);
         this._taskBox = new St.BoxLayout({x_expand: true});
-        this._taskBox.layout_manager.homogeneous = true;
         this.actor.add_child(this._taskBox);
         this._showDesktop = new St.Button({
             style_class: 'gnozzard-show-desktop',
@@ -852,6 +891,10 @@ class ClassicPanel {
             trackFullscreen: true,
         });
         this._signals.connect(settings, 'changed::panel-color', () => this._updateColour());
+        this._signals.connect(settings, 'changed::capped-task-buttons', () =>
+            this._updateTaskWidths());
+        this._signals.connect(this._taskBox, 'notify::width', () =>
+            this._updateTaskWidths());
         this._updateColour();
         this.relayout();
         this._refreshTasks();
@@ -896,7 +939,33 @@ class ClassicPanel {
             this._tasks.push(task);
             this._taskBox.add_child(task.actor);
         }
+        this._updateTaskWidths();
         this._updateFocus();
+    }
+
+    _updateTaskWidths() {
+        const capped = this._settings.get_boolean('capped-task-buttons');
+        this._taskBox.layout_manager.homogeneous = !capped;
+        if (!capped) {
+            for (const task of this._tasks) {
+                task.actor.set_x_expand(true);
+                task.actor.set_width(-1);
+            }
+            return;
+        }
+
+        const count = this._tasks.length;
+        if (count === 0)
+            return;
+        const available = Math.max(1, this._taskBox.width);
+        const width = Math.max(1, Math.min(
+            CAPPED_TASK_BUTTON_WIDTH,
+            Math.floor(available / count)
+        ));
+        for (const task of this._tasks) {
+            task.actor.set_x_expand(false);
+            task.actor.set_width(width);
+        }
     }
 
     _reorderTask(source, target, after) {

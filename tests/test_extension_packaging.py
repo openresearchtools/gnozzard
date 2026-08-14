@@ -23,6 +23,21 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn("'disable', EXTENSION_UUID", source)
         self.assertIn("session-initialized", source)
 
+    def test_capped_task_buttons_are_optional_and_responsive(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        schema = (
+            ROOT
+            / "extension/gnozzard@openresearchtools/schemas/"
+            "org.openresearchtools.gnozzard.gschema.xml"
+        ).read_text()
+        self.assertIn('name="capped-task-buttons"', schema)
+        self.assertIn("<default>false</default>", schema)
+        self.assertIn("Capped task buttons", source)
+        self.assertIn("Math.floor(available / count)", source)
+        self.assertIn("CAPPED_TASK_BUTTON_WIDTH", source)
+
     def test_session_bootstrap_enables_once_and_preserves_later_choices(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
