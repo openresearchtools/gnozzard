@@ -13,7 +13,7 @@ The panel provides:
 
 - a tall, upward-opening, scrollable Applications menu;
 - pinned applications at the menu's bottom edge;
-- one task button per window (never grouped), with optional capped widths;
+- one task button per window (never grouped);
 - click-to-focus/minimise task buttons;
 - task-button actions for graceful Close and red Force Kill;
 - drag-to-reorder task buttons with one shared order on every monitor;
