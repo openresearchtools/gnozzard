@@ -29,7 +29,9 @@ test("renders the Gnozzard landing page", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>Gnozzard — Classic GNOME desktop for Debian<\/title>/i);
-  assert.match(html, /native portable-app and AppImage support/i);
+  assert.match(html, /Classic Desktop for Debian 13\+ · GNOME edition/i);
+  assert.match(html, /classic GNOME desktop extension with native portable apps/i);
+  assert.match(html, /licensed under GPL-3\.0/i);
   assert.match(html, /gnozzard-showcase\.webp/i);
   assert.match(html, /releases\/latest\/download\/gnozzard_amd64\.deb/i);
   assert.match(html, /Cookie &amp; Privacy Policy/i);

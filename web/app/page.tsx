@@ -47,16 +47,20 @@ export default function Home() {
       <header className="site-header">
         <div className="header-inner">
           <a
-            className="button button-muted header-github"
+            className="button button-muted icon-button header-github"
             href={githubUrl}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="Open Gnozzard on GitHub"
           >
-            GitHub
-          </a>
-
-          <a className="brand" href="#top" aria-label="Gnozzard home">
-            Gnozzard
+            <Image
+              className="github-mark"
+              src="/github-mark.svg"
+              alt=""
+              width="24"
+              height="24"
+              unoptimized
+            />
           </a>
 
           <nav className="header-actions" aria-label="Download Gnozzard">
@@ -78,23 +82,9 @@ export default function Home() {
 
       <main>
         <section className="hero" aria-labelledby="hero-title">
-          <div className="hero-copy">
-            <p className="eyebrow">Debian 13+ · GNOME edition</p>
-            <h1 id="hero-title">
-              A classic GNOME desktop with native portable-app and AppImage
-              support.
-            </h1>
-            <p className="intro">
-              Gnozzard is an{" "}
-              <a href={githubUrl} target="_blank" rel="noopener noreferrer">
-                open-source
-              </a>{" "}
-              classic GNOME desktop extension for Debian 13 (Trixie) and newer,
-              licensed under GPL-3.0-or-later. It is designed for the standard
-              Debian GNOME desktop and assumes that Nautilus is the file
-              manager.
-            </p>
-          </div>
+          <h1 className="hero-title" id="hero-title">
+            Classic Desktop for Debian 13+ · GNOME edition
+          </h1>
 
           <figure className="showcase">
             <Image
@@ -106,13 +96,23 @@ export default function Home() {
               unoptimized
             />
           </figure>
+
+          <p className="intro">
+            Gnozzard is an{" "}
+            <a href={githubUrl} target="_blank" rel="noopener noreferrer">
+              open-source
+            </a>{" "}
+            classic GNOME desktop extension with native portable apps and
+            AppImage support for Debian 13 (Trixie) and newer, licensed under
+            GPL-3.0.
+          </p>
         </section>
       </main>
 
       <footer className="site-footer">
         <div className="footer-inner">
           <div className="footer-copy">
-            <p>© 2026 Open Research Tools · GPL-3.0-or-later</p>
+            <p>© 2026 Open Research Tools</p>
             <p className="affiliation-note">
               Gnozzard is not affiliated with or endorsed by{" "}
               <a href="https://www.debian.org/" target="_blank" rel="noopener noreferrer">
