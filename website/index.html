@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gnozzard — Classic GNOME desktop for Debian</title>
+    <meta name="description" content="An open-source classic GNOME desktop extension for Debian 13+ with native portable application and AppImage support.">
+    <link rel="canonical" href="https://gnozzard.com/">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://gnozzard.com/">
+    <meta property="og:title" content="Gnozzard — Classic GNOME desktop for Debian">
+    <meta property="og:description" content="An open-source classic GNOME desktop extension for Debian 13+ with native portable application and AppImage support.">
+    <meta property="og:image" content="https://gnozzard.com/og.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://gnozzard.com/og.png">
+    <link rel="stylesheet" href="site.css">
+    <script src="site.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="top-bar">
+        <div class="bar-content">
+          <a class="button icon-button" href="https://github.com/openresearchtools/gnozzard" target="_blank" rel="noopener noreferrer" aria-label="Open Gnozzard on GitHub">
+            <img src="github-mark.svg" width="22" height="22" alt="">
+          </a>
+          <nav class="top-actions" aria-label="Get Gnozzard">
+            <button class="button" type="button" data-open-dialog="install-dialog">Install</button>
+            <a class="button button-accent" href="https://github.com/openresearchtools/gnozzard/releases/latest/download/gnozzard_amd64.deb">Download</a>
+          </nav>
+        </div>
+      </header>
+
+      <main class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <h1 id="page-title">Gnozzard</h1>
+          <div class="orange-rule" aria-hidden="true"></div>
+          <p class="tagline">Classic <a href="https://github.com/openresearchtools/gnozzard" target="_blank" rel="noopener noreferrer"><strong>open-source</strong></a> GNOME* desktop extension with <strong>native portable apps and AppImage support</strong> for Debian* 13+</p>
+        </div>
+
+        <figure class="showcase">
+          <img src="gnozzard-showcase.webp" width="3840" height="2320" alt="Gnozzard desktop, Applications menu, portable app actions, Debian package installation, pinned applications, process I/O, and ungrouped taskbar">
+        </figure>
+      </main>
+
+      <footer class="bottom-bar">
+        <div class="bar-content footer-content">
+          <p>© 2026 Gnozzard</p>
+          <button class="button" type="button" data-open-dialog="privacy-dialog">Cookie &amp; Privacy Policy</button>
+          <p class="attribution">*Gnozzard is not affiliated with or endorsed by <a href="https://www.debian.org/" target="_blank" rel="noopener noreferrer">Debian</a>, <a href="https://www.gnome.org/" target="_blank" rel="noopener noreferrer">GNOME</a>, <a href="https://github.com/nokyan/resources" target="_blank" rel="noopener noreferrer">Resources</a>, <a href="https://gitlab.gnome.org/GNOME/nautilus" target="_blank" rel="noopener noreferrer">Nautilus</a>, or applications shown in the demonstration.</p>
+        </div>
+      </footer>
+    </div>
+
+    <dialog class="dialog" id="install-dialog" aria-labelledby="install-title">
+      <div class="dialog-heading">
+        <div>
+          <p class="dialog-label">Debian 13+</p>
+          <h2 id="install-title">Install Gnozzard</h2>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog aria-label="Close install instructions">×</button>
+      </div>
+
+      <section class="install-option">
+        <h3>One-command install</h3>
+        <p>Download the latest package and let APT install its dependencies.</p>
+        <div class="code-block">
+          <button class="copy-button" type="button" data-copy="wget-command">Copy</button>
+          <pre><code id="wget-command">wget -qO /tmp/gnozzard_amd64.deb https://github.com/openresearchtools/gnozzard/releases/latest/download/gnozzard_amd64.deb &amp;&amp; sudo apt install /tmp/gnozzard_amd64.deb</code></pre>
+        </div>
+      </section>
+
+      <section class="install-option">
+        <h3>Download from GitHub Releases</h3>
+        <p><a href="https://github.com/openresearchtools/gnozzard/releases/latest/download/gnozzard_amd64.deb">Download gnozzard_amd64.deb</a>, open a terminal in the download folder, and run:</p>
+        <div class="code-block">
+          <button class="copy-button" type="button" data-copy="apt-command">Copy</button>
+          <pre><code id="apt-command">sudo apt install ./gnozzard_amd64.deb</code></pre>
+        </div>
+      </section>
+      <p class="dialog-note">Log out and back in after installation.</p>
+    </dialog>
+
+    <dialog class="dialog privacy-dialog" id="privacy-dialog" aria-labelledby="privacy-title">
+      <div class="dialog-heading">
+        <div>
+          <p class="dialog-label">Last updated 14 August 2026</p>
+          <h2 id="privacy-title">Cookie &amp; Privacy Policy</h2>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog aria-label="Close privacy policy">×</button>
+      </div>
+      <p>At <strong>gnozzard.com</strong>, your privacy is respected. This site does not collect personal data or use tracking technologies.</p>
+      <h3>What data we collect</h3>
+      <ul>
+        <li>We do not set cookies.</li>
+        <li>We do not use analytics, tracking scripts, advertising, or profiling technologies.</li>
+        <li>We do not collect or process visitors’ personal information.</li>
+      </ul>
+      <h3>Hosting and logs</h3>
+      <p>This website is hosted using <a href="https://pages.github.com/" target="_blank" rel="noopener noreferrer">GitHub Pages</a>. GitHub may process limited technical information, such as an IP address and basic request data, to operate the service securely and reliably. See the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener noreferrer">GitHub Privacy Statement</a>.</p>
+      <h3>Links and your rights</h3>
+      <p>External websites have their own privacy practices. Under UK GDPR, you have rights relating to your personal data. Because this site does not collect personal data, there is no visitor information for us to provide or erase.</p>
+    </dialog>
+  </body>
+</html>
