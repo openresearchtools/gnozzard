@@ -22,9 +22,9 @@ The panel provides:
 - application actions for pinning and creating desktop shortcuts;
 - one-workspace and minimise-button defaults while the extension is enabled.
 
-The implementation follows the old XFCE-style model: ordinary desktop files,
-one button per window and event-driven updates. It is not an overview skin and
-does not create workspace previews, live thumbnails or grouped app models.
+Gnozzard brings a classic single-workspace desktop model to modern GNOME, with
+one taskbar entry per window, a simple searchable application list, and
+continued support for GNOME's top bar, system controls, and tray applications.
 
 The Debian package also installs Desktop Icons NG, AppIndicator tray support,
 the GNOME Extensions app, native AppImage and portable application support,
