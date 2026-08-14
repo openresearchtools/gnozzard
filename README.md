@@ -8,10 +8,6 @@ Gnozzard is a simple classic GNOME desktop extension for Debian 13 (Trixie)
 and newer. It is designed for the standard Debian GNOME desktop and assumes
 that Nautilus is the file manager.
 
-Gnozzard keeps GNOME's clock and system indicators, replaces the Activities
-entry with a Resources launcher, and adds a permanent, solid-colour bottom
-panel. It does not replace GNOME or install a separate desktop environment.
-
 The panel provides:
 
 - a tall, upward-opening, scrollable Applications menu;
