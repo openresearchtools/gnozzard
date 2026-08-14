@@ -35,8 +35,7 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn('name="capped-task-buttons"', schema)
         self.assertIn("<default>false</default>", schema)
         self.assertIn("Capped task buttons", source)
-        self.assertIn("CAPPED_TASK_BUTTON_WIDTH * count", source)
-        self.assertIn("this._taskBox.layout_manager.homogeneous = true", source)
+        self.assertIn("Math.floor(available / count)", source)
         self.assertIn("CAPPED_TASK_BUTTON_WIDTH", source)
 
     def test_session_bootstrap_enables_once_and_preserves_later_choices(self):

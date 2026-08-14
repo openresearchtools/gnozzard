@@ -874,13 +874,8 @@ class ClassicPanel {
             can_focus: true,
         });
         this.actor.add_child(this.applicationsButton);
-        this._taskArea = new St.BoxLayout({x_expand: true});
         this._taskBox = new St.BoxLayout({x_expand: true});
-        this._taskBox.layout_manager.homogeneous = true;
-        this._taskSpacer = new St.Widget({x_expand: false});
-        this._taskArea.add_child(this._taskBox);
-        this._taskArea.add_child(this._taskSpacer);
-        this.actor.add_child(this._taskArea);
+        this.actor.add_child(this._taskBox);
         this._showDesktop = new St.Button({
             style_class: 'gnozzard-show-desktop',
             accessible_name: 'Show Desktop',
@@ -898,7 +893,7 @@ class ClassicPanel {
         this._signals.connect(settings, 'changed::panel-color', () => this._updateColour());
         this._signals.connect(settings, 'changed::capped-task-buttons', () =>
             this._updateTaskWidths());
-        this._signals.connect(this._taskArea, 'notify::width', () =>
+        this._signals.connect(this._taskBox, 'notify::width', () =>
             this._updateTaskWidths());
         this._updateColour();
         this.relayout();
@@ -950,27 +945,27 @@ class ClassicPanel {
 
     _updateTaskWidths() {
         const capped = this._settings.get_boolean('capped-task-buttons');
+        this._taskBox.layout_manager.homogeneous = !capped;
         if (!capped) {
-            this._taskSpacer.hide();
-            this._taskSpacer.set_x_expand(false);
-            this._taskBox.set_x_expand(true);
-            this._taskBox.set_width(-1);
+            for (const task of this._tasks) {
+                task.actor.set_x_expand(true);
+                task.actor.set_width(-1);
+            }
             return;
         }
 
-        this._taskSpacer.show();
-        this._taskSpacer.set_x_expand(true);
-        this._taskBox.set_x_expand(false);
         const count = this._tasks.length;
-        if (count === 0) {
-            this._taskBox.set_width(0);
+        if (count === 0)
             return;
-        }
-        const available = Math.max(1, this._taskArea.width);
-        this._taskBox.set_width(Math.min(
-            CAPPED_TASK_BUTTON_WIDTH * count,
-            available
+        const available = Math.max(1, this._taskBox.width);
+        const width = Math.max(1, Math.min(
+            CAPPED_TASK_BUTTON_WIDTH,
+            Math.floor(available / count)
         ));
+        for (const task of this._tasks) {
+            task.actor.set_x_expand(false);
+            task.actor.set_width(width);
+        }
     }
 
     _reorderTask(source, target, after) {
