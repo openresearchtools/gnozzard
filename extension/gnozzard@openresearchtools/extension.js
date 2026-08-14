@@ -18,6 +18,10 @@ const PANEL_HEIGHT = 40;
 const MENU_WIDTH_RATIO = 0.28;
 const MENU_MIN_WIDTH = 320;
 const MENU_MAX_WIDTH = 480;
+const CAPPED_TASK_BUTTON_WIDTH = 260;
+const MIN_TASK_BUTTON_WIDTH = 96;
+const TASK_PAGE_STEP = 5;
+const TASK_PAGE_BUTTON_WIDTH = 28;
 const EXTENSION_UUID = 'gnozzard@openresearchtools';
 
 function markSessionInitialized() {
@@ -597,6 +601,29 @@ class DisplaySettingsDialog extends ModalDialog.ModalDialog {
             style_class: 'gnozzard-settings-description',
             text: 'Choose where the complete Gnozzard taskbar is shown.',
         }));
+        const cappedToggle = new St.Button({
+            style_class: 'gnozzard-capped-toggle',
+            can_focus: true,
+            reactive: true,
+            toggle_mode: true,
+            checked: settings.get_boolean('capped-task-buttons'),
+        });
+        const updateCappedToggle = () => cappedToggle.set_label(
+            `Capped task buttons: ${cappedToggle.checked ? 'On' : 'Off'}`
+        );
+        updateCappedToggle();
+        cappedToggle.connect('notify::checked', () => {
+            this._settings.set_boolean('capped-task-buttons', cappedToggle.checked);
+            updateCappedToggle();
+        });
+        this.contentLayout.add_child(cappedToggle);
+        const cappedDescription = new St.Label({
+            style_class: 'gnozzard-settings-description',
+            text: 'Keep complete window buttons beside Applications and cap their maximum width. Buttons shrink equally; on a full taskbar, arrows move through windows 5 at a time.',
+            x_expand: true,
+        });
+        cappedDescription.clutter_text.set_line_wrap(true);
+        this.contentLayout.add_child(cappedDescription);
         const turnOffButton = new St.Button({
             style_class: 'gnozzard-turn-off-button',
             label: 'Turn Off Gnozzard',
@@ -675,17 +702,24 @@ class TaskContextMenu {
 }
 
 class TaskButton {
-    constructor(window, onChanged, onReorder) {
+    constructor(window, onChanged, onReorder, fixedWidth = null) {
         this.window = window;
         this._onReorder = onReorder;
         this._signals = new SignalStore();
-        this.actor = new St.Button({
+        const actorProperties = {
             style_class: 'gnozzard-task-button',
             can_focus: true,
             reactive: true,
-            x_expand: true,
+            x_expand: fixedWidth === null,
             button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
-        });
+        };
+        if (fixedWidth !== null) {
+            actorProperties.min_width = fixedWidth;
+            actorProperties.min_width_set = true;
+            actorProperties.natural_width = fixedWidth;
+            actorProperties.natural_width_set = true;
+        }
+        this.actor = new St.Button(actorProperties);
         this.actor._delegate = this;
         this._content = new St.BoxLayout({style_class: 'gnozzard-task-content'});
         this._icon = this._windowIcon();
@@ -822,6 +856,9 @@ class ClassicPanel {
         this._onOrderChanged = onOrderChanged;
         this._signals = new SignalStore();
         this._tasks = [];
+        this._taskOffset = 0;
+        this._taskCapacity = 0;
+        this._taskWindowCount = 0;
         this._desktopWindows = sharedState.desktopWindows;
         this.actor = new St.BoxLayout({
             style_class: 'gnozzard-panel',
@@ -834,8 +871,18 @@ class ClassicPanel {
             can_focus: true,
         });
         this.actor.add_child(this.applicationsButton);
+        this._taskNavigation = new St.BoxLayout({
+            style_class: 'gnozzard-task-navigation',
+            visible: false,
+        });
+        this._taskPrevious = this._createTaskPageButton('<', 'Previous 5 windows');
+        this._taskNext = this._createTaskPageButton('>', 'Next 5 windows');
+        this._taskNavigation.add_child(this._taskPrevious);
+        this._taskNavigation.add_child(this._taskNext);
+        this.actor.add_child(this._taskNavigation);
         this._taskBox = new St.BoxLayout({x_expand: true});
-        this._taskBox.layout_manager.homogeneous = true;
+        this._taskBox.layout_manager.homogeneous =
+            !settings.get_boolean('capped-task-buttons');
         this.actor.add_child(this._taskBox);
         this._showDesktop = new St.Button({
             style_class: 'gnozzard-show-desktop',
@@ -845,6 +892,8 @@ class ClassicPanel {
         this.actor.add_child(this._showDesktop);
         this._menu = new ApplicationsMenu(settings, this, monitorIndex);
         this.applicationsButton.connect('clicked', () => this._menu.toggle());
+        this._taskPrevious.connect('clicked', () => this._moveTaskPage(-TASK_PAGE_STEP));
+        this._taskNext.connect('clicked', () => this._moveTaskPage(TASK_PAGE_STEP));
         this._showDesktop.connect('clicked', () => this._toggleDesktop());
 
         Main.layoutManager.addChrome(this.actor, {
@@ -855,6 +904,20 @@ class ClassicPanel {
         this._updateColour();
         this.relayout();
         this._refreshTasks();
+    }
+
+    _createTaskPageButton(label, accessibleName) {
+        return new St.Button({
+            style_class: 'gnozzard-task-page-button',
+            label,
+            accessible_name: accessibleName,
+            can_focus: true,
+            reactive: true,
+            min_width: TASK_PAGE_BUTTON_WIDTH,
+            min_width_set: true,
+            natural_width: TASK_PAGE_BUTTON_WIDTH,
+            natural_width_set: true,
+        });
     }
 
     _updateColour() {
@@ -887,11 +950,14 @@ class ClassicPanel {
             task.destroy();
         this._tasks = [];
         this._taskBox.destroy_all_children();
-        for (const window of this._eligibleWindows()) {
+        const windows = this._eligibleWindows();
+        const layout = this._taskLayout(windows);
+        for (const window of layout.windows) {
             const task = new TaskButton(
                 window,
                 () => this._onWindowsChanged(),
-                (source, target, after) => this._reorderTask(source, target, after)
+                (source, target, after) => this._reorderTask(source, target, after),
+                layout.taskWidth
             );
             this._tasks.push(task);
             this._taskBox.add_child(task.actor);
@@ -899,19 +965,78 @@ class ClassicPanel {
         this._updateFocus();
     }
 
-    _reorderTask(source, target, after) {
-        const localSource = this._tasks.find(task => task.window === source.window);
-        const sourceIndex = this._tasks.indexOf(localSource);
-        if (sourceIndex < 0 || !this._tasks.includes(target))
-            return;
+    _taskLayout(windows) {
+        const count = windows.length;
+        this._taskWindowCount = count;
+        if (!this._settings.get_boolean('capped-task-buttons') || count === 0) {
+            this._taskOffset = 0;
+            this._taskCapacity = count;
+            this._taskNavigation.hide();
+            return {windows, taskWidth: null};
+        }
+        const monitor = Main.layoutManager.monitors[this._monitorIndex] ??
+            Main.layoutManager.primaryMonitor;
+        if (!monitor) {
+            this._taskOffset = 0;
+            this._taskCapacity = count;
+            this._taskNavigation.hide();
+            return {windows, taskWidth: CAPPED_TASK_BUTTON_WIDTH};
+        }
+        const [, applicationsWidth] = this.applicationsButton.get_preferred_width(-1);
+        const [, desktopWidth] = this._showDesktop.get_preferred_width(-1);
+        const availableWithoutNavigation = Math.max(MIN_TASK_BUTTON_WIDTH,
+            monitor.width - applicationsWidth - desktopWidth);
+        const overflow = count * MIN_TASK_BUTTON_WIDTH > availableWithoutNavigation;
+        const available = Math.max(MIN_TASK_BUTTON_WIDTH,
+            availableWithoutNavigation - (overflow ? TASK_PAGE_BUTTON_WIDTH * 2 : 0));
+        const capacity = overflow
+            ? Math.max(1, Math.floor(available / MIN_TASK_BUTTON_WIDTH))
+            : count;
+        const maxOffset = Math.max(0, count - capacity);
+        this._taskOffset = Math.min(this._taskOffset, maxOffset);
+        this._taskCapacity = capacity;
+        this._taskNavigation.visible = overflow;
+        this._updateTaskPageButtons();
+        const visibleWindows = overflow
+            ? windows.slice(this._taskOffset, this._taskOffset + capacity)
+            : windows;
+        const taskWidth = Math.max(MIN_TASK_BUTTON_WIDTH, Math.min(
+            CAPPED_TASK_BUTTON_WIDTH,
+            Math.floor(available / visibleWindows.length)
+        ));
+        return {windows: visibleWindows, taskWidth};
+    }
 
-        this._tasks.splice(sourceIndex, 1);
-        const targetIndex = this._tasks.indexOf(target);
-        const newIndex = targetIndex + (after ? 1 : 0);
-        this._tasks.splice(newIndex, 0, localSource);
-        this._taskBox.set_child_at_index(localSource.actor, newIndex);
-        this._sharedState.windowOrder.splice(0, this._sharedState.windowOrder.length,
-            ...this._tasks.map(task => task.window));
+    _moveTaskPage(delta) {
+        const maxOffset = Math.max(0, this._taskWindowCount - this._taskCapacity);
+        const nextOffset = Math.max(0, Math.min(maxOffset, this._taskOffset + delta));
+        if (nextOffset === this._taskOffset)
+            return;
+        this._taskOffset = nextOffset;
+        this._refreshTasks();
+    }
+
+    _updateTaskPageButtons() {
+        const maxOffset = Math.max(0, this._taskWindowCount - this._taskCapacity);
+        this._setTaskPageButtonEnabled(this._taskPrevious, this._taskOffset > 0);
+        this._setTaskPageButtonEnabled(this._taskNext, this._taskOffset < maxOffset);
+    }
+
+    _setTaskPageButtonEnabled(button, enabled) {
+        button.reactive = enabled;
+        button.can_focus = enabled;
+        button.opacity = enabled ? 255 : 90;
+    }
+
+    _reorderTask(source, target, after) {
+        const order = this._sharedState.windowOrder;
+        const sourceIndex = order.indexOf(source.window);
+        if (sourceIndex < 0 || !order.includes(target.window))
+            return;
+        const [window] = order.splice(sourceIndex, 1);
+        const targetIndex = order.indexOf(target.window);
+        order.splice(targetIndex + (after ? 1 : 0), 0, window);
+        this._refreshTasks();
         this._onOrderChanged(this);
     }
 
@@ -921,8 +1046,9 @@ class ClassicPanel {
     }
 
     _toggleDesktop() {
+        const windows = this._eligibleWindows();
         const restorable = [...this._desktopWindows].filter(window =>
-            this._tasks.some(task => task.window === window) && window.minimized);
+            windows.includes(window) && window.minimized);
         if (restorable.length > 0) {
             for (const window of restorable)
                 window.unminimize();
@@ -931,10 +1057,10 @@ class ClassicPanel {
             return;
         }
         this._desktopWindows.clear();
-        for (const task of this._tasks) {
-            if (!task.window.minimized) {
-                this._desktopWindows.add(task.window);
-                task.window.minimize();
+        for (const window of windows) {
+            if (!window.minimized) {
+                this._desktopWindows.add(window);
+                window.minimize();
             }
         }
     }
@@ -1049,6 +1175,8 @@ export default class GnozzardExtension extends Extension {
         this._signals.connect(this._settings, 'changed::show-resources-button', () =>
             this._syncResourcesButton());
         this._signals.connect(this._settings, 'changed::taskbars-all-displays', () =>
+            this._rebuildPanels());
+        this._signals.connect(this._settings, 'changed::capped-task-buttons', () =>
             this._rebuildPanels());
         this._syncResourcesButton();
     }

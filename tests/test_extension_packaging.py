@@ -23,6 +23,51 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn("'disable', EXTENSION_UUID", source)
         self.assertIn("session-initialized", source)
 
+    def test_capped_mode_sizes_complete_task_buttons_without_layout_callbacks(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        schema = (
+            ROOT
+            / "extension/gnozzard@openresearchtools/schemas/"
+            "org.openresearchtools.gnozzard.gschema.xml"
+        ).read_text()
+        self.assertIn('name="capped-task-buttons"', schema)
+        self.assertIn("Capped task buttons", source)
+        self.assertIn("actorProperties.min_width = fixedWidth", source)
+        self.assertIn("actorProperties.natural_width = fixedWidth", source)
+        self.assertIn("const MIN_TASK_BUTTON_WIDTH = 96", source)
+        self.assertIn("const TASK_PAGE_STEP = 5", source)
+        self.assertIn("Previous 5 windows", source)
+        self.assertIn("Next 5 windows", source)
+        self.assertIn("windows.slice(this._taskOffset", source)
+        self.assertIn("count * MIN_TASK_BUTTON_WIDTH", source)
+        capped_schema = schema.split('name="capped-task-buttons"', 1)[1].split(
+            "</key>", 1
+        )[0]
+        self.assertIn("<default>true</default>", capped_schema)
+        self.assertNotIn("'notify::width'", source)
+
+    def test_capped_overflow_is_local_to_each_monitor_panel(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        classic_panel = source.split("class ClassicPanel", 1)[1].split(
+            "class ResourcesButton", 1
+        )[0]
+        self.assertIn("this._taskOffset = 0", classic_panel)
+        self.assertIn("this._monitorIndex", classic_panel)
+        panel_state = source.split("this._panelState = {", 1)[1].split("};", 1)[0]
+        self.assertNotIn("taskOffset", panel_state)
+
+    def test_paginated_reorder_and_show_desktop_use_all_windows(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        self.assertIn("const order = this._sharedState.windowOrder", source)
+        self.assertIn("const windows = this._eligibleWindows();", source)
+        self.assertIn("for (const window of windows)", source)
+
     def test_session_bootstrap_enables_once_and_preserves_later_choices(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

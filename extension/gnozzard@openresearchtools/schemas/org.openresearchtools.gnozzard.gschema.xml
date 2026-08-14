@@ -21,6 +21,10 @@
       <default>true</default>
       <summary>Show the complete taskbar on every connected display</summary>
     </key>
+    <key name="capped-task-buttons" type="b">
+      <default>true</default>
+      <summary>Cap complete task buttons beside Applications</summary>
+    </key>
     <key name="toggle-applications" type="as">
       <default><![CDATA[['<Super>a']]]></default>
       <summary>Open the Applications menu</summary>
