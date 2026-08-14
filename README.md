@@ -26,12 +26,13 @@ The implementation follows the old XFCE-style model: ordinary desktop files,
 one button per window and event-driven updates. It is not an overview skin and
 does not create workspace previews, live thumbnails or grouped app models.
 
-The Debian package also installs Desktop Icons NG, native AppImage and portable
-application support, AppImage MIME integration, and Nautilus actions for
-launching an AppImage or adding it to Applications with one click. Local
-`.desktop` launchers can also be added to Applications, while local `.deb`
-packages get a direct **Install Debian Package…** action. The package includes
-a lightly adapted fork of the GPL-3.0-or-later Resources 1.8.0 system monitor.
+The Debian package also installs Desktop Icons NG, AppIndicator tray support,
+the GNOME Extensions app, native AppImage and portable application support,
+AppImage MIME integration, and Nautilus actions for launching an AppImage or
+adding it to Applications with one click. Local `.desktop` launchers can also
+be added to Applications, while local `.deb` packages get a direct **Install
+Debian Package…** action. The package includes a lightly adapted fork of the
+GPL-3.0-or-later Resources 1.8.0 system monitor.
 
 ## Supported systems
 
@@ -59,8 +60,9 @@ install the local file:
 sudo apt install ./gnozzard_amd64.deb
 ```
 
-The session bootstrap enables Gnozzard and Desktop Icons NG for each user
-without replacing the rest of the GNOME top bar.
+The session bootstrap enables Gnozzard, Desktop Icons NG and AppIndicator once
+for each new user without replacing the rest of the GNOME top bar. Later
+extension choices are preserved across logins.
 
 ## Repository layout
 

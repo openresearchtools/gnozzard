@@ -1,19 +1,34 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Autostart can race Shell's extension service on login. Retry briefly and then
-# leave a diagnostic in the journal rather than looping in the background.
-attempt=0
-while [ "$attempt" -lt 10 ]; do
-    if gnome-extensions enable gnozzard@openresearchtools 2>/dev/null; then
-        gnome-extensions enable ding@rastersoft.com 2>/dev/null || true
-        xdg-mime default gnozzard-appimage-launcher.desktop application/vnd.appimage 2>/dev/null || true
-        xdg-mime default gnozzard-appimage-launcher.desktop application/x-iso9660-appimage 2>/dev/null || true
-        exit 0
-    fi
-    attempt=$((attempt + 1))
-    sleep 1
-done
+state_root=${XDG_STATE_HOME:-"$HOME/.local/state"}
+state_dir="$state_root/gnozzard"
+initialized_marker="$state_dir/session-initialized"
 
-echo "gnozzard: GNOME extension service was unavailable during login" >&2
+# Enable the desktop extensions once for a new user. Never force them back on
+# at later logins: choices made in Gnozzard or the Extensions app must persist.
+if [ ! -e "$initialized_marker" ]; then
+    attempt=0
+    initialized=false
+    while [ "$attempt" -lt 10 ]; do
+        if gnome-extensions enable gnozzard@openresearchtools 2>/dev/null; then
+            gnome-extensions enable ding@rastersoft.com 2>/dev/null || true
+            gnome-extensions enable ubuntu-appindicators@ubuntu.com 2>/dev/null || true
+            mkdir -p "$state_dir"
+            : > "$initialized_marker"
+            initialized=true
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+
+    if [ "$initialized" != true ]; then
+        echo "gnozzard: GNOME extension service was unavailable during login" >&2
+    fi
+fi
+
+xdg_launcher=gnozzard-appimage-launcher.desktop
+xdg-mime default "$xdg_launcher" application/vnd.appimage 2>/dev/null || true
+xdg-mime default "$xdg_launcher" application/x-iso9660-appimage 2>/dev/null || true
 exit 0

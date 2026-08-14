@@ -96,6 +96,26 @@
   color: #c8c8c8;
 }
 
+.gnozzard-turn-off-button {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 92, 92, 0.55);
+  border-radius: 8px;
+  background-color: rgba(180, 36, 36, 0.16);
+  color: #ff7777;
+  font-weight: bold;
+}
+
+.gnozzard-turn-off-button:hover,
+.gnozzard-turn-off-button:focus {
+  background-color: rgba(210, 48, 48, 0.28);
+  color: #ffffff;
+}
+
+.gnozzard-turn-off-button:active {
+  background-color: rgba(230, 58, 58, 0.42);
+}
+
 .gnozzard-app-list {
   spacing: 1px;
 }
