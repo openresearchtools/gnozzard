@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import resource
+import shlex
 import shutil
 import stat
 import struct
@@ -532,6 +533,10 @@ def locate_desktop_file(desktop_id: str) -> Path:
 def command_launch(arguments: argparse.Namespace) -> None:
     path = validate_appimage(arguments.path)
     authorize(path)
+    directory = persistent_extract_directory(path)
+    if directory.exists() or directory.is_symlink():
+        exec_extracted_appimage(path, directory, extracted_apprun(directory))
+        return
     os.chdir(path.parent)
     environment = os.environ.copy()
     environment.setdefault("ELECTRON_OZONE_PLATFORM_HINT", "wayland")
@@ -562,6 +567,83 @@ def extracted_apprun(directory: Path) -> Path:
         raise UserInputError("extracted AppRun target is not a user-owned regular file")
     resolved.chmod(target_info.st_mode | stat.S_IXUSR)
     return apprun
+
+
+def extracted_desktop_arguments(directory: Path) -> list[str]:
+    """Return literal launch arguments declared by the AppImage desktop entry."""
+    try:
+        desktop_files = sorted(directory.glob("*.desktop"))
+    except OSError:
+        return []
+    for desktop_file in desktop_files:
+        try:
+            info = desktop_file.lstat()
+            if (
+                stat.S_ISLNK(info.st_mode)
+                or not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or not 0 < info.st_size <= MAX_DESKTOP_BYTES
+            ):
+                continue
+            content = desktop_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue
+        exec_value = desktop_field(content, "Exec")
+        if not exec_value:
+            continue
+        try:
+            tokens = shlex.split(exec_value, posix=True)
+        except ValueError:
+            continue
+        if not tokens:
+            continue
+        fixed_arguments = []
+        for token in tokens[1:]:
+            without_literal_percent = token.replace("%%", "")
+            if re.search(r"%[A-Za-z]", without_literal_percent):
+                continue
+            fixed_arguments.append(token.replace("%%", "%"))
+        return fixed_arguments
+    return []
+
+
+def no_sandbox_marker(directory: Path) -> Path:
+    return directory / ".no-sandbox"
+
+
+def has_no_sandbox_approval(directory: Path) -> bool:
+    try:
+        info = no_sandbox_marker(directory).lstat()
+    except OSError:
+        return False
+    return (
+        stat.S_ISREG(info.st_mode)
+        and not stat.S_ISLNK(info.st_mode)
+        and info.st_uid == os.getuid()
+        and stat.S_IMODE(info.st_mode) == 0o600
+        and info.st_size == 0
+    )
+
+
+def exec_extracted_appimage(path: Path, directory: Path, apprun: Path) -> None:
+    os.chdir(directory)
+    environment = os.environ.copy()
+    environment.setdefault("ELECTRON_OZONE_PLATFORM_HINT", "wayland")
+    environment["APPIMAGE"] = str(path)
+    environment["APPDIR"] = str(directory)
+    environment["OWD"] = str(path.parent)
+    desktop_arguments = extracted_desktop_arguments(directory)
+    launch_arguments = [
+        argument for argument in desktop_arguments if argument != "--no-sandbox"
+    ]
+    if has_no_sandbox_approval(directory):
+        try:
+            position = desktop_arguments.index("--no-sandbox")
+        except ValueError:
+            launch_arguments.append("--no-sandbox")
+        else:
+            launch_arguments.insert(position, "--no-sandbox")
+    os.execve(apprun, [str(apprun), *launch_arguments], environment)
 
 
 def ensure_persistent_extraction(path: Path) -> tuple[Path, Path]:
@@ -604,17 +686,23 @@ def ensure_persistent_extraction(path: Path) -> tuple[Path, Path]:
             shutil.rmtree(temporary, ignore_errors=True)
 
 
+def extract_and_run(path: Path, request_no_sandbox: bool = False) -> None:
+    directory, apprun = ensure_persistent_extraction(path)
+    if request_no_sandbox and not has_no_sandbox_approval(directory):
+        atomic_write(no_sandbox_marker(directory), "", mode=0o600)
+    exec_extracted_appimage(path, directory, apprun)
+
+
 def command_extract_and_run(arguments: argparse.Namespace) -> None:
     path = validate_appimage(arguments.path)
     authorize(path)
-    directory, apprun = ensure_persistent_extraction(path)
-    os.chdir(directory)
-    environment = os.environ.copy()
-    environment.setdefault("ELECTRON_OZONE_PLATFORM_HINT", "wayland")
-    environment["APPIMAGE"] = str(path)
-    environment["APPDIR"] = str(directory)
-    environment["OWD"] = str(path.parent)
-    os.execve(apprun, [str(apprun)], environment)
+    extract_and_run(path)
+
+
+def command_extract_and_run_no_sandbox(arguments: argparse.Namespace) -> None:
+    path = validate_appimage(arguments.path)
+    authorize(path)
+    extract_and_run(path, request_no_sandbox=True)
 
 
 def command_desktop_launch(arguments: argparse.Namespace) -> None:
@@ -783,6 +871,13 @@ def parser() -> argparse.ArgumentParser:
     )
     extract_run.add_argument("path")
     extract_run.set_defaults(function=command_extract_and_run)
+
+    extract_run_no_sandbox = subparsers.add_parser(
+        "extract-and-run-no-sandbox",
+        help="persistently extract and run an AppImage without its sandbox",
+    )
+    extract_run_no_sandbox.add_argument("path")
+    extract_run_no_sandbox.set_defaults(function=command_extract_and_run_no_sandbox)
 
     authorize_parser = subparsers.add_parser("authorize", help="make a valid AppImage executable")
     authorize_parser.add_argument("path")

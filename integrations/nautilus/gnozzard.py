@@ -84,6 +84,15 @@ class GnozzardAppImageMenuProvider(GObject.GObject, Nautilus.MenuProvider):
         extract_run.connect(
             "activate", lambda _item: self._command("extract-and-run", path)
         )
+        extract_run_no_sandbox = Nautilus.MenuItem(
+            name="Gnozzard::AppImageExtractRunNoSandbox",
+            label="Extract and Run --no-sandbox",
+            tip="Extract persistently and request approval to disable the app sandbox",
+        )
+        extract_run_no_sandbox.connect(
+            "activate",
+            lambda _item: self._command("extract-and-run-no-sandbox", path),
+        )
 
         applications = Nautilus.MenuItem(
             name="Gnozzard::AppImageApplications",
@@ -97,4 +106,4 @@ class GnozzardAppImageMenuProvider(GObject.GObject, Nautilus.MenuProvider):
             tip="Create Applications and desktop entries for this AppImage",
         )
         desktop.connect("activate", lambda _item: self._register(path, True))
-        return [run, extract_run, applications, desktop]
+        return [run, extract_run, extract_run_no_sandbox, applications, desktop]

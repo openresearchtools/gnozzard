@@ -21,8 +21,30 @@ const CAPPED_TASK_BUTTON_WIDTH = 260;
 const MIN_TASK_BUTTON_WIDTH = 96;
 const TASK_PAGE_STEP = 5;
 const TASK_PAGE_BUTTON_WIDTH = 28;
+const RESOURCES_BUTTON_NAME = 'gnozzardResourcesButton';
 function stopEvent() {
     return Clutter.EVENT_STOP;
+}
+
+function launchGraphicalCommand(commandArguments, name) {
+    const commandLine = commandArguments
+        .map(argument => GLib.shell_quote(argument)).join(' ');
+    const appInfo = Gio.AppInfo.create_from_commandline(
+        commandLine,
+        name,
+        Gio.AppInfoCreateFlags.SUPPORTS_STARTUP_NOTIFICATION
+    );
+    const context = global.create_app_launch_context(global.get_current_time(), -1);
+    appInfo.launch([], context);
+}
+
+function removeResourcesButtons() {
+    for (const child of Main.panel?._leftBox?.get_children() ?? []) {
+        const isGnozzardButton = child.get_name?.() === RESOURCES_BUTTON_NAME ||
+            child.has_style_class_name?.('gnozzard-resources-button');
+        if (isGnozzardButton)
+            child.destroy();
+    }
 }
 
 function managedAppForWindow(window) {
@@ -113,6 +135,47 @@ class AppContextMenu {
         launch.connect('activate', () => this._app.open_new_window(-1));
         this.menu.addMenuItem(launch);
 
+        const isAppImage = desktopId.startsWith('gnozzard-appimage-');
+        const isDesktopLauncher = desktopId.startsWith('gnozzard-launcher-');
+        if (isAppImage) {
+            const appImagePath = this._app.get_app_info()?.get_string('X-AppImage-Path');
+            if (appImagePath) {
+                const extractAndRun = new PopupMenu.PopupMenuItem('Extract and Run');
+                extractAndRun.connect('activate', () => {
+                    this._refresh(true);
+                    try {
+                        launchGraphicalCommand(
+                            ['/usr/libexec/gnozzard', 'extract-and-run', appImagePath],
+                            'Gnozzard AppImage'
+                        );
+                    } catch (error) {
+                        logError(error, `Could not extract and run ${desktopId}`);
+                    }
+                });
+                this.menu.addMenuItem(extractAndRun);
+
+                const extractAndRunNoSandbox = new PopupMenu.PopupMenuItem(
+                    'Extract and Run --no-sandbox');
+                extractAndRunNoSandbox.connect('activate', () => {
+                    this._refresh(true);
+                    try {
+                        launchGraphicalCommand(
+                            [
+                                '/usr/libexec/gnozzard',
+                                'extract-and-run-no-sandbox',
+                                appImagePath,
+                            ],
+                            'Gnozzard AppImage'
+                        );
+                    } catch (error) {
+                        logError(error,
+                            `Could not extract and run ${desktopId} without sandboxing`);
+                    }
+                });
+                this.menu.addMenuItem(extractAndRunNoSandbox);
+            }
+        }
+
         const pin = new PopupMenu.PopupMenuItem(isPinned ? 'Unpin' : 'Pin');
         pin.connect('activate', () => {
             const next = isPinned
@@ -136,8 +199,6 @@ class AppContextMenu {
         });
         this.menu.addMenuItem(desktop);
 
-        const isAppImage = desktopId.startsWith('gnozzard-appimage-');
-        const isDesktopLauncher = desktopId.startsWith('gnozzard-launcher-');
         if (isAppImage || isDesktopLauncher) {
             const renameCommand = isAppImage ? 'rename-appimage' : 'rename-desktop';
             const removeCommand = isAppImage ? 'remove-appimage' : 'remove-desktop';
@@ -788,7 +849,8 @@ class ClassicPanel {
         const eligible = global.display.get_tab_list(Meta.TabList.NORMAL_ALL, active)
             .filter(window => !window.skip_taskbar &&
                 window.get_window_type() !== Meta.WindowType.DESKTOP &&
-                !(window.get_title() ?? '').startsWith('@!'))
+                !(window.get_title() ?? '').startsWith('@!') &&
+                !(window.get_title() ?? '').startsWith('Desktop Icons '))
             .sort((a, b) => a.get_stable_sequence() - b.get_stable_sequence());
         const available = new Set(eligible);
         const ordered = this._sharedState.windowOrder
@@ -967,6 +1029,7 @@ class ClassicPanel {
 class ResourcesButton {
     constructor() {
         this.actor = new St.Button({
+            name: RESOURCES_BUTTON_NAME,
             style_class: 'panel-button gnozzard-resources-button',
             reactive: true,
             can_focus: true,
@@ -974,7 +1037,7 @@ class ResourcesButton {
         });
         const content = new St.BoxLayout({style_class: 'gnozzard-resources-content'});
         content.add_child(new St.Icon({
-            icon_name: 'net.nokyan.Resources-symbolic',
+            icon_name: 'org.openresearchtools.GnozzardResources-symbolic',
             icon_size: 16,
         }));
         content.add_child(new St.Label({
@@ -983,7 +1046,8 @@ class ResourcesButton {
         }));
         this.actor.set_child(content);
         this.actor.connect('clicked', () => {
-            const app = Shell.AppSystem.get_default().lookup_app('net.nokyan.Resources.desktop');
+            const app = Shell.AppSystem.get_default().lookup_app(
+                'org.openresearchtools.GnozzardResources.desktop');
             if (app)
                 app.activate();
             else
@@ -993,7 +1057,9 @@ class ResourcesButton {
     }
 
     destroy() {
-        this.actor.destroy();
+        if (this.actor?.get_parent())
+            this.actor.destroy();
+        this.actor = null;
     }
 }
 
@@ -1008,6 +1074,7 @@ export default class GnozzardExtension extends Extension {
             desktopWindows: new Set(),
         };
         this._panels = [];
+        this._refreshSource = 0;
         this._applyClassicSettings();
         this._rebuildPanels();
         Main.wm.addKeybinding(
@@ -1017,8 +1084,10 @@ export default class GnozzardExtension extends Extension {
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             () => this._primaryPanel()?.toggleApplications()
         );
-        this._signals.connect(global.display, 'window-created', () =>
-            this._refreshPanels());
+        this._signals.connect(global.display, 'window-created', (_display, window) =>
+            this._watchWindow(window));
+        for (const actor of global.get_window_actors())
+            this._watchWindow(actor.meta_window);
         this._signals.connect(global.display, 'notify::focus-window', () =>
             this._updatePanelsFocus());
         this._signals.connect(Shell.WindowTracker.get_default(), 'tracked-windows-changed', () =>
@@ -1068,6 +1137,24 @@ export default class GnozzardExtension extends Extension {
             panel.refreshTasks();
     }
 
+    _watchWindow(window) {
+        if (!window)
+            return;
+        this._signals.connect(window, 'notify::skip-taskbar', () =>
+            this._schedulePanelRefresh());
+        this._schedulePanelRefresh();
+    }
+
+    _schedulePanelRefresh() {
+        if (this._refreshSource)
+            return;
+        this._refreshSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+            this._refreshSource = 0;
+            this._refreshPanels();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
     _updatePanelsFocus() {
         for (const panel of this._panels)
             panel.updateFocus();
@@ -1094,6 +1181,7 @@ export default class GnozzardExtension extends Extension {
         const wm = this._schema('org.gnome.desktop.wm.preferences');
         const desktop = this._schema('org.gnome.desktop.interface');
         const background = this._schema('org.gnome.desktop.background');
+        const shellKeybindings = this._schema('org.gnome.shell.keybindings');
         if (!this._settings.get_boolean('settings-owned')) {
             this._settings.set_boolean('previous-dynamic-workspaces',
                 mutter.get_boolean('dynamic-workspaces'));
@@ -1105,7 +1193,8 @@ export default class GnozzardExtension extends Extension {
             this._settings.set_boolean('settings-owned', true);
         }
         desktop.set_boolean('enable-hot-corners', false);
-        desktop.set_string('accent-color', 'orange');
+        if (desktop.settings_schema.has_key('accent-color'))
+            desktop.set_string('accent-color', 'orange');
         desktop.set_string('color-scheme', 'prefer-dark');
         desktop.set_string('icon-theme', 'Gnozzard');
         wm.set_string('button-layout', ':minimize,maximize,close');
@@ -1115,6 +1204,14 @@ export default class GnozzardExtension extends Extension {
         background.set_string('color-shading-type', 'solid');
         background.set_string('primary-color', '#202225');
         background.set_string('secondary-color', '#202225');
+        if (shellKeybindings.settings_schema.has_key('toggle-application-view')) {
+            if (!this._settings.get_boolean('application-view-keybinding-owned')) {
+                this._settings.set_strv('previous-application-view-keybinding',
+                    shellKeybindings.get_strv('toggle-application-view'));
+                this._settings.set_boolean('application-view-keybinding-owned', true);
+            }
+            shellKeybindings.set_strv('toggle-application-view', []);
+        }
         this._applyLockBackground();
         this._applyWorkspaceSetting();
     }
@@ -1175,6 +1272,7 @@ export default class GnozzardExtension extends Extension {
     _syncResourcesButton() {
         this._resourcesButton?.destroy();
         this._resourcesButton = null;
+        removeResourcesButtons();
         const activities = Main.panel.statusArea.activities?.container ??
             Main.panel.statusArea.activities;
         if (activities)
@@ -1185,6 +1283,13 @@ export default class GnozzardExtension extends Extension {
 
     _restoreSettings() {
         this._restoreLockBackground();
+        const shellKeybindings = this._schema('org.gnome.shell.keybindings');
+        if (this._settings?.get_boolean('application-view-keybinding-owned') &&
+            shellKeybindings.settings_schema.has_key('toggle-application-view')) {
+            shellKeybindings.set_strv('toggle-application-view',
+                this._settings.get_strv('previous-application-view-keybinding'));
+            this._settings.set_boolean('application-view-keybinding-owned', false);
+        }
         if (!this._settings?.get_boolean('settings-owned'))
             return;
         const mutter = this._schema('org.gnome.mutter');
@@ -1202,6 +1307,9 @@ export default class GnozzardExtension extends Extension {
 
     disable() {
         Main.wm.removeKeybinding('toggle-applications');
+        if (this._refreshSource)
+            GLib.source_remove(this._refreshSource);
+        this._refreshSource = 0;
         this._signals?.clear();
         for (const panel of this._panels ?? [])
             panel.destroy();
@@ -1214,6 +1322,7 @@ export default class GnozzardExtension extends Extension {
         this._previousTopPanelStyle = null;
         this._resourcesButton?.destroy();
         this._resourcesButton = null;
+        removeResourcesButtons();
         const activities = Main.panel.statusArea.activities?.container ??
             Main.panel.statusArea.activities;
         if (activities)

@@ -1,11 +1,28 @@
 [package]
 name = "resources"
 version = "1.8.0"
+autobins = false
 authors = ["nokyan <hello@nokyan.net>"]
 edition = "2024"
 rust-version = "1.85.0"
 homepage = "https://apps.gnome.org/app/net.nokyan.Resources/"
 license = "GPL-3.0-or-later"
+
+[[bin]]
+name = "gnozzard-resources"
+path = "src/bin/resources.rs"
+
+[[bin]]
+name = "gnozzard-resources-processes"
+path = "src/bin/resources-processes.rs"
+
+[[bin]]
+name = "gnozzard-resources-kill"
+path = "src/bin/resources-kill.rs"
+
+[[bin]]
+name = "gnozzard-resources-adjust"
+path = "src/bin/resources-adjust.rs"
 
 [profile.dev]
 opt-level = 1
@@ -17,7 +34,7 @@ strip = true
 opt-level = 3
 
 [dependencies]
-adw = { version = "0.7.1", features = ["v1_6"], package = "libadwaita" }
+adw = { version = "0.7.1", features = ["v1_5"], package = "libadwaita" }
 anyhow = { version = "1.0.97", features = ["backtrace"] }
 async-channel = "2.3.1"
 clap = { version = "4.5.34", features = ["derive"] }

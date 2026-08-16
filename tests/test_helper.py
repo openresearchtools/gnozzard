@@ -42,6 +42,10 @@ class HelperTests(unittest.TestCase):
                 apprun = extracted / "AppRun"
                 apprun.write_text("#!/bin/sh\n")
                 apprun.chmod(0o700)
+                (extracted / "example.desktop").write_text(
+                    "[Desktop Entry]\nType=Application\n"
+                    "Exec=AppRun --extract-mode %U\n"
+                )
                 return helper.subprocess.CompletedProcess(command, 0)
 
             with mock.patch.object(helper, "squashfs_offset", return_value=123):
@@ -52,7 +56,10 @@ class HelperTests(unittest.TestCase):
             self.assertTrue(path.stat().st_mode & stat.S_IXUSR)
             self.assertTrue(destination.is_dir())
             self.assertEqual(execute.call_args.args[0], destination / "AppRun")
-            self.assertEqual(execute.call_args.args[1], [str(destination / "AppRun")])
+            self.assertEqual(
+                execute.call_args.args[1],
+                [str(destination / "AppRun"), "--extract-mode"],
+            )
             self.assertEqual(execute.call_args.args[2]["APPDIR"], str(destination))
 
     def test_extract_and_run_reuses_existing_persistent_sibling(self):
@@ -69,6 +76,117 @@ class HelperTests(unittest.TestCase):
                     with mock.patch.object(helper.os, "execve"):
                         helper.command_extract_and_run(arguments)
             extract.assert_not_called()
+
+    def test_launch_reuses_existing_persistent_sibling(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = appimage(Path(temporary) / "Existing.AppImage")
+            destination = path.with_name("Existing.AppImage.extracted")
+            destination.mkdir()
+            apprun = destination / "AppRun"
+            apprun.write_text("#!/bin/sh\n")
+            apprun.chmod(0o700)
+            (destination / "existing.desktop").write_text(
+                "[Desktop Entry]\nType=Application\n"
+                'Exec=AppRun --no-sandbox --profile="Local Profile" %U\n'
+            )
+            marker = destination / ".no-sandbox"
+            marker.write_text("")
+            marker.chmod(0o600)
+            arguments = type("Arguments", (), {"path": str(path)})()
+
+            with mock.patch.object(helper.os, "chdir") as change_directory:
+                with mock.patch.object(helper.os, "execve") as execute:
+                    helper.command_launch(arguments)
+
+            change_directory.assert_called_once_with(destination)
+            self.assertEqual(execute.call_args.args[0], apprun)
+            self.assertEqual(
+                execute.call_args.args[1],
+                [str(apprun), "--no-sandbox", "--profile=Local Profile"],
+            )
+            self.assertEqual(execute.call_args.args[2]["APPIMAGE"], str(path))
+            self.assertEqual(execute.call_args.args[2]["APPDIR"], str(destination))
+            self.assertEqual(execute.call_args.args[2]["OWD"], str(path.parent))
+
+    def test_extract_and_run_ignores_unapproved_requested_no_sandbox(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = appimage(Path(temporary) / "NormalExtract.AppImage")
+            destination = path.with_name("NormalExtract.AppImage.extracted")
+            destination.mkdir()
+            apprun = destination / "AppRun"
+            apprun.write_text("#!/bin/sh\n")
+            apprun.chmod(0o700)
+            (destination / "normal.desktop").write_text(
+                "[Desktop Entry]\nType=Application\n"
+                "Exec=AppRun --no-sandbox --safe-fixed %U\n"
+            )
+            arguments = type("Arguments", (), {"path": str(path)})()
+
+            with mock.patch.object(helper.subprocess, "run") as run:
+                with mock.patch.object(helper.os, "execve") as execute:
+                    helper.command_extract_and_run(arguments)
+
+            run.assert_not_called()
+            self.assertFalse((destination / ".no-sandbox").exists())
+            self.assertEqual(
+                execute.call_args.args[1], [str(apprun), "--safe-fixed"]
+            )
+
+    def test_explicit_no_sandbox_action_creates_marker_without_dialog(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = appimage(Path(temporary) / "Explicit.AppImage")
+            destination = path.with_name("Explicit.AppImage.extracted")
+            destination.mkdir()
+            apprun = destination / "AppRun"
+            apprun.write_text("#!/bin/sh\n")
+            apprun.chmod(0o700)
+            (destination / "explicit.desktop").write_text(
+                "[Desktop Entry]\nType=Application\nExec=AppRun %U\n"
+            )
+            arguments = type("Arguments", (), {"path": str(path)})()
+
+            with mock.patch.object(helper.subprocess, "run") as run:
+                with mock.patch.object(helper.os, "execve") as execute:
+                    helper.command_extract_and_run_no_sandbox(arguments)
+
+            run.assert_not_called()
+            marker = destination / ".no-sandbox"
+            self.assertTrue(marker.is_file())
+            self.assertEqual(stat.S_IMODE(marker.stat().st_mode), 0o600)
+            self.assertEqual(execute.call_args.args[1], [str(apprun), "--no-sandbox"])
+
+    def test_normal_launch_omits_unapproved_no_sandbox(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = appimage(Path(temporary) / "Unapproved.AppImage")
+            destination = path.with_name("Unapproved.AppImage.extracted")
+            destination.mkdir()
+            apprun = destination / "AppRun"
+            apprun.write_text("#!/bin/sh\n")
+            apprun.chmod(0o700)
+            (destination / "unapproved.desktop").write_text(
+                "[Desktop Entry]\nType=Application\n"
+                "Exec=AppRun --no-sandbox --safe-fixed %U\n"
+            )
+            arguments = type("Arguments", (), {"path": str(path)})()
+
+            with mock.patch.object(helper.os, "execve") as execute:
+                helper.command_launch(arguments)
+
+            self.assertEqual(execute.call_args.args[1], [str(apprun), "--safe-fixed"])
+            self.assertFalse((destination / ".no-sandbox").exists())
+
+    def test_launch_uses_appimage_when_no_persistent_sibling_exists(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = appimage(Path(temporary) / "Normal.AppImage")
+            arguments = type("Arguments", (), {"path": str(path)})()
+
+            with mock.patch.object(helper.os, "chdir") as change_directory:
+                with mock.patch.object(helper.os, "execve") as execute:
+                    helper.command_launch(arguments)
+
+            change_directory.assert_called_once_with(path.parent)
+            self.assertEqual(execute.call_args.args[0], path)
+            self.assertEqual(execute.call_args.args[1], [str(path)])
 
     def test_rejects_extension_only_file(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -122,7 +122,7 @@ static KNOWN_EXECUTABLE_NAME_EXCEPTIONS: LazyLock<HashMap<&'static str, &'static
             ("firefox-bin", "firefox"),
             ("oosplash", "libreoffice"),
             ("soffice.bin", "libreoffice"),
-            ("resources-processes", "resources"),
+            ("gnozzard-resources-processes", "gnozzard-resources"),
             ("gnome-terminal-server", "gnome-terminal"),
             ("chrome", "google-chrome-stable"),
         ])

@@ -24,7 +24,7 @@ mod imp {
     };
 
     #[derive(CompositeTemplate, Properties)]
-    #[template(resource = "/net/nokyan/Resources/ui/pages/memory.ui")]
+    #[template(resource = "/org/openresearchtools/GnozzardResources/ui/pages/memory.ui")]
     #[properties(wrapper_type = super::ResMemory)]
     pub struct ResMemory {
         #[template_child]

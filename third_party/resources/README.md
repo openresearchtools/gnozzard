@@ -3,6 +3,9 @@
 > **Gnozzard fork**
 >
 > This directory contains [Gnozzard’s fork](https://github.com/openresearchtools/gnozzard/tree/main/third_party/resources) of [Resources](https://github.com/nokyan/resources). It adds experimental per-process and per-application disk I/O reporting, including drive read speed, drive write speed, and I/O-wait percentage.
+> The packaged fork remains visibly named **Resources**, but uses the application
+> ID `org.openresearchtools.GnozzardResources` and the command
+> `gnozzard-resources` so it can coexist with an upstream or distribution build.
 
 <a href='https://flathub.org/apps/net.nokyan.Resources'><img width='240' alt='Download on Flathub' src='https://flathub.org/api/badge?svg&locale=en'/></a>
 
@@ -104,7 +107,7 @@ ninja -C build install
 ## Running
 
 Running Resources is as simple as typing `flatpak run net.nokyan.Resources` into a terminal or running it from your app launcher.
-If you’ve built Resources natively or installed it from a traditional package manager such as `apt` or `dnf`, or if you’ve built Resources yourself, typing `resources` in a terminal will start Resources.
+In this Gnozzard fork, typing `gnozzard-resources` in a terminal starts the native build without colliding with a distribution-provided `resources` command.
 If you’ve built Resources as a Flatpak, type `flatpak-builder --run flatpak_app build-aux/net.nokyan.Resources.Devel.json resources` into your terminal or use one of the aforementioned IDEs to do that automatically.
 
 ## Contributing

@@ -2,12 +2,12 @@
 
 ![Gnozzard desktop and portable application workflow](docs/showcase/gnozzard-showcase.webp)
 
-<sub><em>Gnozzard is not affiliated with or endorsed by upstream projects such as <a href="https://salsa.debian.org/gnome-team" target="_blank" rel="noopener noreferrer">Debian GNOME</a>, <a href="https://gitlab.gnome.org/GNOME/gnome-shell" target="_blank" rel="noopener noreferrer">GNOME Shell</a>, <a href="https://github.com/nokyan/resources" target="_blank" rel="noopener noreferrer">Resources</a>, <a href="https://gitlab.gnome.org/GNOME/nautilus" target="_blank" rel="noopener noreferrer">Nautilus</a>, <a href="https://projects.blender.org/blender/blender" target="_blank" rel="noopener noreferrer">Blender</a>, or <a href="https://invent.kde.org/graphics/krita" target="_blank" rel="noopener noreferrer">Krita</a>. Applications are shown only to demonstrate desktop and application-menu functionality.</em></sub>
+<sub><em>Gnozzard is not affiliated with or endorsed by upstream projects such as <a href="https://salsa.debian.org/gnome-team" target="_blank" rel="noopener noreferrer">Debian GNOME</a>, <a href="https://ubuntu.com/" target="_blank" rel="noopener noreferrer">Ubuntu</a>, <a href="https://gitlab.gnome.org/GNOME/gnome-shell" target="_blank" rel="noopener noreferrer">GNOME Shell</a>, <a href="https://github.com/nokyan/resources" target="_blank" rel="noopener noreferrer">Resources</a>, <a href="https://gitlab.gnome.org/GNOME/nautilus" target="_blank" rel="noopener noreferrer">Nautilus</a>, <a href="https://projects.blender.org/blender/blender" target="_blank" rel="noopener noreferrer">Blender</a>, or <a href="https://invent.kde.org/graphics/krita" target="_blank" rel="noopener noreferrer">Krita</a>. Applications are shown only to demonstrate desktop and application-menu functionality.</em></sub>
 
-Gnozzard is a simple classic GNOME desktop extension for Debian 13 (Trixie)
-and newer, with native support for portable applications and AppImages. It is
-designed for the standard Debian GNOME desktop and assumes that Nautilus is
-the file manager.
+Gnozzard is a simple classic GNOME desktop extension for Debian\* 13+ and
+Ubuntu\* 24.04/26.04+, with native support for portable applications and
+AppImages. It is designed for the standard GNOME desktop and assumes that
+Nautilus is the file manager.
 
 The panel provides:
 
@@ -27,22 +27,24 @@ Gnozzard brings a classic single-workspace desktop model to modern GNOME, with
 one taskbar entry per window, a simple searchable application list, and
 continued support for GNOME's top bar, system controls, and tray applications.
 
-The Debian package also installs Desktop Icons NG, AppIndicator tray support,
+The `.deb` package also installs Desktop Icons NG, AppIndicator tray support,
 the native Gnozzard app, native AppImage and portable application support,
 AppImage MIME integration, and Nautilus actions for launching an AppImage or
 adding it to Applications with one click. Local `.desktop` launchers can also
 be added to Applications, while local `.deb` packages get a direct **Install
 Debian Package…** action. The package includes a lightly adapted fork of the
-GPL-3.0-or-later Resources 1.8.0 system monitor.
+GPL-3.0-or-later Resources 1.8.0 system monitor. It remains visibly named
+**Resources**, but uses Gnozzard-specific internal IDs and executable names so
+it can coexist with a distribution's stock `resources` package.
 
 ## Supported systems
 
-The initial package targets Debian 13 (Trixie), GNOME Shell 48, and amd64. The
-extension metadata declares Shell 46–48 because it uses the GNOME 45+ ESM
-extension API. Later Debian releases are in scope, but a compatibility update
-is required before the package can be installed with GNOME Shell 49 or newer.
+The amd64 package is tested on Debian 13 with GNOME Shell 48, Ubuntu 24.04 LTS
+with GNOME Shell 46, and Ubuntu 26.04 LTS with GNOME Shell 50. Its extension
+metadata declares Shell 46–50 and the bundled Resources fork is built against
+the libadwaita 1.5 baseline used by Ubuntu 24.04.
 
-## Install the Debian package
+## Install the package
 
 To download the newest published release and install it with APT in one
 command, run:
@@ -62,8 +64,9 @@ sudo apt install ./gnozzard_amd64.deb
 ```
 
 The session bootstrap enables Gnozzard, Desktop Icons NG and AppIndicator once
-for each new user without replacing the rest of the GNOME top bar. Later
-extension choices are preserved across logins.
+for each new user without replacing the rest of the GNOME top bar. On Ubuntu,
+it disables Ubuntu Dock once so it does not duplicate Gnozzard's taskbar.
+Later extension choices are preserved across logins.
 
 ## Repository layout
 

@@ -27,7 +27,7 @@ mod imp {
     };
 
     #[derive(CompositeTemplate, Properties)]
-    #[template(resource = "/net/nokyan/Resources/ui/pages/cpu.ui")]
+    #[template(resource = "/org/openresearchtools/GnozzardResources/ui/pages/cpu.ui")]
     #[properties(wrapper_type = super::ResCPU)]
     pub struct ResCPU {
         #[template_child]

@@ -11,6 +11,9 @@
 v1.8.0 is intentionally pinned because it supports GTK 4.10 and libadwaita
 1.6, matching Debian 13. Later upstream versions require libadwaita 1.8.
 Its AppStream metadata and `.typos.toml` retain their CC0-1.0 licences.
+The packaged fork keeps the visible name **Resources** while using the unique
+application ID `org.openresearchtools.GnozzardResources`; this prevents it from
+overwriting or replacing a distribution-provided Resources installation.
 
 ## Adwaita folder artwork
 

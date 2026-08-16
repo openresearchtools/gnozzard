@@ -3,7 +3,7 @@
   "name": "Gnozzard",
   "description": "A permanent, ungrouped classic taskbar, tall applications menu, one-workspace mode, desktop shortcuts and Resources launcher.",
   "version": 1,
-  "shell-version": ["46", "47", "48"],
+  "shell-version": ["46", "47", "48", "49", "50"],
   "settings-schema": "org.openresearchtools.gnozzard",
   "url": "https://github.com/openresearchtools/gnozzard"
 }

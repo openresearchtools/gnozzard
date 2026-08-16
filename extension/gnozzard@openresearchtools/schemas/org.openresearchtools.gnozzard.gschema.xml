@@ -35,6 +35,8 @@
     <key name="previous-hot-corners" type="b"><default>true</default></key>
     <key name="previous-button-layout" type="s"><default>'appmenu:close'</default></key>
     <key name="previous-overlay-key" type="s"><default>'Super_L'</default></key>
+    <key name="application-view-keybinding-owned" type="b"><default>false</default></key>
+    <key name="previous-application-view-keybinding" type="as"><default>[]</default></key>
     <key name="lock-settings-owned" type="b"><default>false</default></key>
     <key name="previous-lock-picture-uri" type="s"><default>''</default></key>
     <key name="previous-lock-picture-options" type="s"><default>'zoom'</default></key>

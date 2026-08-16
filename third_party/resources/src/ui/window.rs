@@ -66,7 +66,7 @@ mod imp {
     use process_data::{GpuIdentifier, pci_slot::PciSlot};
 
     #[derive(Debug, CompositeTemplate)]
-    #[template(resource = "/net/nokyan/Resources/ui/window.ui")]
+    #[template(resource = "/org/openresearchtools/GnozzardResources/ui/window.ui")]
     pub struct MainWindow {
         #[template_child]
         pub split_view: TemplateChild<adw::OverlaySplitView>,
@@ -793,19 +793,28 @@ impl MainWindow {
 
         let logical_cpus = imp.cpu.imp().logical_cpus_amount.get();
 
-        let (tx_data, rx_data) = std::sync::mpsc::sync_channel(1);
-        let (tx_wait, rx_wait) = std::sync::mpsc::sync_channel(1);
+        // Keep all potentially slow device and process gathering off GTK's main
+        // context. In particular, process I/O-wait sampling may need to walk a
+        // large, rapidly changing set of /proc/<pid>/task entries. A synchronous
+        // receive here used to freeze every window interaction whenever a sample
+        // exceeded the anticipated 200 ms gathering window.
+        let (tx_data, rx_data) = async_channel::bounded(1);
+        let (tx_wait, rx_wait) = async_channel::bounded(1);
 
         std::thread::spawn(move || {
             trace!("Spawning refresh thread");
 
             loop {
                 let data = Self::gather_refresh_data(logical_cpus, &gpus, &npus);
-                tx_data.send(data).unwrap();
+                if tx_data.send_blocking(data).is_err() {
+                    break;
+                }
 
                 // Wait on delay so we don't gather data multiple times in a short time span
                 // Which usually just yields the same data and makes changes appear delayed by (up to) multiple refreshes
-                rx_wait.recv().unwrap();
+                if rx_wait.recv_blocking().is_err() {
+                    break;
+                }
             }
         });
 
@@ -815,7 +824,9 @@ impl MainWindow {
 
         loop {
             // gather_refresh_data()
-            let refresh_data = rx_data.recv().unwrap();
+            let Ok(refresh_data) = rx_data.recv().await else {
+                break;
+            };
 
             self.refresh_ui(refresh_data);
 
@@ -853,7 +864,9 @@ impl MainWindow {
             timeout_future(Duration::from_secs_f32(total_delay - gather_time)).await;
 
             // Tell other threads to start gathering data
-            tx_wait.send(()).unwrap();
+            if tx_wait.send(()).await.is_err() {
+                break;
+            }
 
             timeout_future(Duration::from_secs_f32(gather_time)).await;
         }

@@ -28,7 +28,7 @@ mod imp {
     };
 
     #[derive(CompositeTemplate, Properties)]
-    #[template(resource = "/net/nokyan/Resources/ui/pages/drive.ui")]
+    #[template(resource = "/org/openresearchtools/GnozzardResources/ui/pages/drive.ui")]
     #[properties(wrapper_type = super::ResDrive)]
     pub struct ResDrive {
         #[template_child]

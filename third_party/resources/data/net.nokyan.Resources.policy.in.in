@@ -4,8 +4,8 @@
  "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
 <policyconfig>
   <vendor>The Nalux Team</vendor>
-  <icon_name>net.nokyan.Resources-symbolic</icon_name>
-  <action id="net.nokyan.Resources.kill">
+  <icon_name>@app-id@-symbolic</icon_name>
+  <action id="@app-id@.kill">
     <description>Control Process</description>
     <message>Authentication is required to control superuser’s or other users’ processes</message>
     <defaults>
@@ -13,6 +13,6 @@
       <allow_inactive>no</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">@libexecdir@/resources-kill</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">@libexecdir@/gnozzard-resources-kill</annotate>
   </action>
 </policyconfig>

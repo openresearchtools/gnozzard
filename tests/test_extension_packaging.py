@@ -9,6 +9,71 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ExtensionPackagingTests(unittest.TestCase):
+    def test_supported_shell_and_libadwaita_versions_cover_target_desktops(self):
+        metadata = (
+            ROOT / "extension/gnozzard@openresearchtools/metadata.json"
+        ).read_text()
+        control = (ROOT / "debian/control").read_text()
+        cargo = (ROOT / "third_party/resources/Cargo.toml").read_text()
+        meson = (ROOT / "third_party/resources/meson.build").read_text()
+        self.assertIn('"shell-version": ["46", "47", "48", "49", "50"]', metadata)
+        self.assertIn(" gnome-shell (>= 46),", control)
+        self.assertIn(" gnome-shell (<< 51),", control)
+        self.assertIn(" libadwaita-1-dev (>= 1.5)", control)
+        self.assertIn('features = ["v1_5"]', cargo)
+        self.assertIn("dependency('libadwaita-1', version: '>= 1.5.0')", meson)
+
+    def test_gnome_46_missing_accent_key_is_feature_detected(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        self.assertIn("settings_schema.has_key('accent-color')", source)
+        self.assertIn("desktop.set_string('accent-color', 'orange')", source)
+
+    def test_native_application_view_binding_is_restored_on_disable(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        schema = (
+            ROOT
+            / "extension/gnozzard@openresearchtools/schemas/"
+            "org.openresearchtools.gnozzard.gschema.xml"
+        ).read_text()
+        self.assertIn("shellKeybindings.set_strv('toggle-application-view', [])", source)
+        self.assertIn("previous-application-view-keybinding", source)
+        self.assertIn('name="application-view-keybinding-owned"', schema)
+        self.assertIn('name="previous-application-view-keybinding"', schema)
+
+    def test_bundled_resources_fork_coexists_with_the_stock_package(self):
+        control = (ROOT / "debian/control").read_text()
+        resources_meson = (ROOT / "third_party/resources/meson.build").read_text()
+        resources_cargo = (ROOT / "third_party/resources/Cargo.toml").read_text()
+        resources_desktop = (
+            ROOT / "third_party/resources/data/net.nokyan.Resources.desktop.in.in"
+        ).read_text()
+        resources_schema = (
+            ROOT / "third_party/resources/data/net.nokyan.Resources.gschema.xml.in"
+        ).read_text()
+        resources_policy = (
+            ROOT / "third_party/resources/data/net.nokyan.Resources.policy.in.in"
+        ).read_text()
+        extension = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+
+        self.assertNotIn("Provides:\n resources,\n", control)
+        self.assertNotIn("Conflicts:\n resources,\n", control)
+        self.assertNotIn("Replaces:\n resources,\n", control)
+        self.assertIn("'gnozzard-resources'", resources_meson)
+        self.assertIn("base_id = 'org.openresearchtools.GnozzardResources'", resources_meson)
+        self.assertIn('name = "gnozzard-resources"', resources_cargo)
+        self.assertIn("Name=Resources", resources_desktop)
+        self.assertIn("Exec=gnozzard-resources", resources_desktop)
+        self.assertIn("/org/openresearchtools/GnozzardResources/", resources_schema)
+        self.assertIn('<action id="@app-id@.kill">', resources_policy)
+        self.assertIn("org.openresearchtools.GnozzardResources.desktop", extension)
+        self.assertIn("org.openresearchtools.GnozzardResources-symbolic", extension)
+
     def test_resources_uses_symbolic_icon_and_links_to_bundled_fork(self):
         application = (
             ROOT / "third_party/resources/src/application.rs"
@@ -90,6 +155,40 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn("session-initialized", settings_app)
         self.assertIn("data/gnozzard-settings usr/bin/", install)
 
+    def test_appimage_context_menu_reuses_extract_and_run_helper(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        context_menu = source.split("class AppContextMenu", 1)[1].split(
+            "class ApplicationRow", 1
+        )[0]
+        self.assertIn("new PopupMenu.PopupMenuItem('Extract and Run')", context_menu)
+        self.assertIn("'Extract and Run --no-sandbox'", context_menu)
+        self.assertIn("get_string('X-AppImage-Path')", context_menu)
+        self.assertIn(
+            "['/usr/libexec/gnozzard', 'extract-and-run', appImagePath]",
+            context_menu,
+        )
+        self.assertIn("launchGraphicalCommand(", context_menu)
+        self.assertIn("'extract-and-run-no-sandbox'", context_menu)
+        self.assertIn("if (isAppImage)", context_menu)
+
+    def test_nautilus_has_shared_explicit_no_sandbox_action(self):
+        source = (ROOT / "integrations/nautilus/gnozzard.py").read_text()
+        self.assertIn('label="Extract and Run --no-sandbox"', source)
+        self.assertIn('self._command("extract-and-run-no-sandbox", path)', source)
+
+    def test_appimage_context_action_uses_gnome_graphical_launch_context(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        launcher = source.split("function launchGraphicalCommand", 1)[1].split(
+            "function removeResourcesButtons", 1
+        )[0]
+        self.assertIn("Gio.AppInfo.create_from_commandline", launcher)
+        self.assertIn("global.create_app_launch_context", launcher)
+        self.assertIn("appInfo.launch([], context)", launcher)
+
     def test_capped_mode_sizes_complete_task_buttons_without_layout_callbacks(self):
         source = (
             ROOT / "extension/gnozzard@openresearchtools/extension.js"
@@ -127,6 +226,21 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn("this._monitorIndex", classic_panel)
         panel_state = source.split("this._panelState = {", 1)[1].split("};", 1)[0]
         self.assertNotIn("taskOffset", panel_state)
+
+    def test_resources_button_sync_removes_stale_gnome_shell_actors(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        self.assertIn(
+            "const RESOURCES_BUTTON_NAME = 'gnozzardResourcesButton'", source
+        )
+        self.assertIn("function removeResourcesButtons()", source)
+        self.assertIn("child.has_style_class_name?.('gnozzard-resources-button')", source)
+        self.assertIn("name: RESOURCES_BUTTON_NAME", source)
+        sync = source.split("_syncResourcesButton() {", 1)[1].split(
+            "_restoreSettings()", 1
+        )[0]
+        self.assertIn("removeResourcesButtons();", sync)
 
     def test_paginated_reorder_and_show_desktop_use_all_windows(self):
         source = (
@@ -167,8 +281,14 @@ class ExtensionPackagingTests(unittest.TestCase):
             self.assertIn(
                 "gnome-extensions enable ubuntu-appindicators@ubuntu.com", first_run
             )
+            self.assertIn(
+                "gnome-extensions disable ubuntu-dock@ubuntu.com", first_run
+            )
             self.assertTrue(
                 (root / "state/gnozzard/session-initialized").is_file()
+            )
+            self.assertTrue(
+                (root / "state/gnozzard/ubuntu-dock-disabled").is_file()
             )
 
             subprocess.run([str(script)], env=environment, check=True)
@@ -179,6 +299,21 @@ class ExtensionPackagingTests(unittest.TestCase):
                 ),
                 1,
             )
+            self.assertEqual(
+                second_run.count(
+                    "gnome-extensions disable ubuntu-dock@ubuntu.com"
+                ),
+                1,
+            )
+
+    def test_ubuntu_24_ding_backing_window_is_not_a_task(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        self.assertIn("startsWith('Desktop Icons ')", source)
+        self.assertIn("'notify::skip-taskbar'", source)
+        self.assertIn("this._schedulePanelRefresh()", source)
+        self.assertIn("GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250", source)
 
 
 if __name__ == "__main__":

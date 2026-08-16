@@ -14,7 +14,9 @@ mod imp {
     };
 
     #[derive(CompositeTemplate, Properties)]
-    #[template(resource = "/net/nokyan/Resources/ui/widgets/process_name_cell.ui")]
+    #[template(
+        resource = "/org/openresearchtools/GnozzardResources/ui/widgets/process_name_cell.ui"
+    )]
     #[properties(wrapper_type = super::ResProcessNameCell)]
     pub struct ResProcessNameCell {
         #[template_child]

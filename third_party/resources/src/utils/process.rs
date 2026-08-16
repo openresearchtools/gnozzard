@@ -26,11 +26,11 @@ use super::{
 static COMPANION_PROCESS: LazyLock<Mutex<(ChildStdin, ChildStdout)>> = LazyLock::new(|| {
     let proxy_path = if *IS_FLATPAK {
         format!(
-            "{}/libexec/resources/resources-processes",
+            "{}/libexec/gnozzard-resources/gnozzard-resources-processes",
             FLATPAK_APP_PATH.as_str()
         )
     } else {
-        format!("{LIBEXECDIR}/resources-processes")
+        format!("{LIBEXECDIR}/gnozzard-resources-processes")
     };
 
     let child = if *IS_FLATPAK {
@@ -266,11 +266,11 @@ impl Process {
     ) -> Result<()> {
         let adjust_path = if *IS_FLATPAK {
             format!(
-                "{}/libexec/resources/resources-adjust",
+                "{}/libexec/gnozzard-resources/gnozzard-resources-adjust",
                 FLATPAK_APP_PATH.as_str()
             )
         } else {
-            format!("{LIBEXECDIR}/resources-adjust")
+            format!("{LIBEXECDIR}/gnozzard-resources-adjust")
         };
 
         let affinity_string = affinity
@@ -308,11 +308,11 @@ impl Process {
 
         let kill_path = if *IS_FLATPAK {
             format!(
-                "{}/libexec/resources/resources-kill",
+                "{}/libexec/gnozzard-resources/gnozzard-resources-kill",
                 FLATPAK_APP_PATH.as_str()
             )
         } else {
-            format!("{LIBEXECDIR}/resources-kill")
+            format!("{LIBEXECDIR}/gnozzard-resources-kill")
         };
 
         let result = Self::maybe_pkexec_command(

@@ -23,7 +23,7 @@ mod imp {
     };
 
     #[derive(CompositeTemplate, Properties)]
-    #[template(resource = "/net/nokyan/Resources/ui/pages/battery.ui")]
+    #[template(resource = "/org/openresearchtools/GnozzardResources/ui/pages/battery.ui")]
     #[properties(wrapper_type = super::ResBattery)]
     pub struct ResBattery {
         #[template_child]
