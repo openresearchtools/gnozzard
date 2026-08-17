@@ -28,6 +28,7 @@ class GnozzardSettings(Adw.Application):
         super().__init__(application_id=APPLICATION_ID)
         self._window = None
         self._refresh_source = 0
+        self._refresh_failures = 0
         self._updating_extension_rows = False
         self._extension_rows = {}
         self._dialog = None
@@ -139,8 +140,11 @@ class GnozzardSettings(Adw.Application):
         try:
             enabled = self._enabled_extensions()
         except (OSError, subprocess.CalledProcessError) as error:
-            self._show_error("Could not read GNOME extension state", error)
+            self._refresh_failures += 1
+            if self._refresh_failures >= 3 and self._dialog is None:
+                self._show_error("Could not read GNOME extension state", error)
             return GLib.SOURCE_CONTINUE
+        self._refresh_failures = 0
         self._updating_extension_rows = True
         try:
             for uuid, row in self._extension_rows.items():

@@ -153,6 +153,11 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn('TRAY_UUID = "ubuntu-appindicators@ubuntu.com"', settings_app)
         self.assertIn("Turn off Gnozzard?", settings_app)
         self.assertIn("session-initialized", settings_app)
+        self.assertIn("self._refresh_failures = 0", settings_app)
+        self.assertIn("self._refresh_failures += 1", settings_app)
+        self.assertIn(
+            "self._refresh_failures >= 3 and self._dialog is None", settings_app
+        )
         self.assertIn("data/gnozzard-settings usr/bin/", install)
 
     def test_appimage_context_menu_reuses_extract_and_run_helper(self):
