@@ -114,6 +114,9 @@ jobs:
 
   build-deb:
     needs: build-context
+    if: >-
+      always() &&
+      needs.build-context.result == 'success'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false

@@ -244,6 +244,7 @@ class ExtensionPackagingTests(unittest.TestCase):
     def test_github_artifacts_build_amd64_and_arm64_packages(self):
         workflow = (ROOT / ".github/workflows/build-deb.yml").read_text()
         self.assertIn("architecture: [amd64, arm64]", workflow)
+        self.assertIn("needs.build-context.result == 'success'", workflow)
         self.assertIn('--arch "$ARCHITECTURE"', workflow)
         self.assertIn("--env ARCHITECTURE", workflow)
         self.assertIn("qemu-user-static binfmt-support", workflow)
