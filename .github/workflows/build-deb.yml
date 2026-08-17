@@ -165,13 +165,35 @@ jobs:
               ./scripts/vendor-cargo.sh
               ./scripts/check.sh
               ./scripts/build-deb.sh
-              lintian --tag-display-limit 0 /work/gnozzard_*.deb
-              package="$(find /work -maxdepth 1 -type f -name "gnozzard_*_${ARCHITECTURE}.deb" -print -quit)"
-              test -n "$package"
-              test "$(dpkg-deb --field "$package" Architecture)" = "$ARCHITECTURE"
-              cp /work/gnozzard_*.deb /out/
+              lintian --tag-display-limit 0 \
+                /work/gnozzard_*.deb \
+                /work/gnozzard-resources_*.deb
+              for package_name in gnozzard gnozzard-resources; do
+                package="$(find /work -maxdepth 1 -type f -name "${package_name}_*_${ARCHITECTURE}.deb" -print -quit)"
+                test -n "$package"
+                test "$(dpkg-deb --field "$package" Package)" = "$package_name"
+                test "$(dpkg-deb --field "$package" Architecture)" = "$ARCHITECTURE"
+              done
+              main_package="$(find /work -maxdepth 1 -type f -name "gnozzard_*_${ARCHITECTURE}.deb" -print -quit)"
+              resources_package="$(find /work -maxdepth 1 -type f -name "gnozzard-resources_*_${ARCHITECTURE}.deb" -print -quit)"
+              package_version="$(dpkg-deb --field "$main_package" Version)"
+              dpkg-deb --field "$main_package" Depends \
+                | grep --fixed-strings "gnozzard-resources (= $package_version)"
+              main_contents="$(mktemp)"
+              resources_contents="$(mktemp)"
+              main_files="$(mktemp)"
+              resources_files="$(mktemp)"
+              dpkg-deb --contents "$main_package" > "$main_contents"
+              dpkg-deb --contents "$resources_package" > "$resources_contents"
+              awk "{print \$6}" "$main_contents" | grep -v "/$" | sort > "$main_files"
+              awk "{print \$6}" "$resources_contents" | grep -v "/$" | sort > "$resources_files"
+              test -z "$(comm -12 "$main_files" "$resources_files")"
+              grep --fixed-strings \
+                "./usr/share/doc/gnozzard-resources/copyright" \
+                "$resources_contents"
+              cp /work/gnozzard_*.deb /work/gnozzard-resources_*.deb /out/
               cd /out
-              for package in gnozzard_*.deb; do
+              for package in gnozzard_*.deb gnozzard-resources_*.deb; do
                 sha256sum "$package" > "$package.sha256"
                 dpkg-deb --info "$package" >/dev/null
                 sha256sum --check "$package.sha256"
@@ -186,6 +208,8 @@ jobs:
           path: |
             dist/gnozzard_*.deb
             dist/gnozzard_*.deb.sha256
+            dist/gnozzard-resources_*.deb
+            dist/gnozzard-resources_*.deb.sha256
 
   publish-release:
     if: >-
@@ -214,24 +238,27 @@ jobs:
           changelog_version="$(dpkg-parsechangelog -S Version)"
           mkdir -p release-assets
           for architecture in amd64 arm64; do
-            versioned_deb="$(find release-download -maxdepth 1 -type f -name "gnozzard_*_${architecture}.deb" -print -quit)"
-            test -n "$versioned_deb"
-            test -f "$versioned_deb.sha256"
-            package_version="$(dpkg-deb --field "$versioned_deb" Version)"
-            package_name="$(dpkg-deb --field "$versioned_deb" Package)"
-            package_architecture="$(dpkg-deb --field "$versioned_deb" Architecture)"
-            test "$package_name" = gnozzard
-            test "$package_architecture" = "$architecture"
-            if [[ "$package_version" != "$changelog_version" ]]; then
-              echo "Package version $package_version does not match changelog $changelog_version" >&2
-              exit 1
-            fi
-            (
-              cd release-download
-              sha256sum --check "$(basename "$versioned_deb.sha256")"
-            )
-            cp "$versioned_deb" "release-assets/gnozzard_${architecture}.deb"
+            for expected_package in gnozzard gnozzard-resources; do
+              versioned_deb="$(find release-download -maxdepth 1 -type f -name "${expected_package}_*_${architecture}.deb" -print -quit)"
+              test -n "$versioned_deb"
+              test -f "$versioned_deb.sha256"
+              package_version="$(dpkg-deb --field "$versioned_deb" Version)"
+              package_name="$(dpkg-deb --field "$versioned_deb" Package)"
+              package_architecture="$(dpkg-deb --field "$versioned_deb" Architecture)"
+              test "$package_name" = "$expected_package"
+              test "$package_architecture" = "$architecture"
+              if [[ "$package_version" != "$changelog_version" ]]; then
+                echo "Package version $package_version does not match changelog $changelog_version" >&2
+                exit 1
+              fi
+              (
+                cd release-download
+                sha256sum --check "$(basename "$versioned_deb.sha256")"
+              )
+              cp "$versioned_deb" "release-assets/${expected_package}_${architecture}.deb"
+            done
           done
+          test "$(find release-assets -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 4
 
       - name: Publish GitHub release
         env:

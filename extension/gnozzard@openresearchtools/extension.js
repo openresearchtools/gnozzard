@@ -570,6 +570,14 @@ class ApplicationsMenu {
             this._grab = null;
         }
         global.stage.set_key_focus(null);
+        if (this._search.get_text() !== '') {
+            this._search.set_text('');
+            if (this._searchTimeout) {
+                GLib.source_remove(this._searchTimeout);
+                this._searchTimeout = 0;
+            }
+            this._dirty = true;
+        }
         console.debug('gnozzard: Applications menu closed');
     }
 

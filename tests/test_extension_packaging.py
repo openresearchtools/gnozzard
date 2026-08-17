@@ -143,7 +143,7 @@ class ExtensionPackagingTests(unittest.TestCase):
         desktop_entry = (
             ROOT / "data/com.openresearchtools.GnozzardSettings.desktop"
         ).read_text()
-        install = (ROOT / "debian/install").read_text()
+        install = (ROOT / "debian/gnozzard.install").read_text()
         self.assertIn("com.openresearchtools.GnozzardSettings.desktop", source)
         self.assertIn("\nName=Gnozzard\n", desktop_entry)
         self.assertNotIn("Name=Gnozzard Settings", desktop_entry)
@@ -246,6 +246,20 @@ class ExtensionPackagingTests(unittest.TestCase):
         )[0]
         self.assertIn("color: #ffffff;", task_label)
 
+    def test_applications_search_is_cleared_when_menu_closes(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        applications_menu = source.split("class ApplicationsMenu", 1)[1].split(
+            "class TaskContextMenu", 1
+        )[0]
+        close_method = applications_menu.split("    close() {", 1)[1].split(
+            "    destroy() {", 1
+        )[0]
+        self.assertIn("this._search.set_text('')", close_method)
+        self.assertIn("this._dirty = true", close_method)
+        self.assertIn("GLib.source_remove(this._searchTimeout)", close_method)
+
     def test_github_artifacts_build_amd64_and_arm64_packages(self):
         workflow = (ROOT / ".github/workflows/build-deb.yml").read_text()
         self.assertIn("architecture: amd64", workflow)
@@ -264,8 +278,45 @@ class ExtensionPackagingTests(unittest.TestCase):
         )
         self.assertIn("for architecture in amd64 arm64; do", workflow)
         self.assertIn(
-            '"release-assets/gnozzard_${architecture}.deb"', workflow
+            '"release-assets/${expected_package}_${architecture}.deb"', workflow
         )
+        self.assertIn("for expected_package in gnozzard gnozzard-resources", workflow)
+        self.assertIn(
+            'grep --fixed-strings "gnozzard-resources (= $package_version)"',
+            workflow,
+        )
+        self.assertIn('comm -12 "$main_files" "$resources_files"', workflow)
+        self.assertIn(
+            "test \"$(find release-assets -maxdepth 1 -type f -name '*.deb' | wc -l)\" -eq 4",
+            workflow,
+        )
+
+    def test_resources_is_a_separate_version_locked_binary_package(self):
+        control = (ROOT / "debian/control").read_text()
+        desktop_install = (ROOT / "debian/gnozzard.install").read_text()
+        resources_install = (ROOT / "debian/gnozzard-resources.install").read_text()
+        resources_docs = (ROOT / "debian/gnozzard-resources.docs").read_text()
+
+        self.assertIn("Package: gnozzard-resources", control)
+        self.assertIn(" gnozzard-resources (= ${binary:Version}),", control)
+        self.assertIn(" gnozzard (<< ${binary:Version})", control)
+        resources_control = control.split("Package: gnozzard-resources", 1)[1]
+        self.assertIn(" desktop-file-utils,", resources_control)
+        self.assertIn(" libglib2.0-bin,", resources_control)
+        self.assertNotIn("debian/tmp/", desktop_install)
+        self.assertIn("debian/tmp/usr/bin/* usr/bin/", resources_install)
+        self.assertIn(
+            "data/sysctl/60-gnozzard-delayacct.conf usr/lib/sysctl.d/",
+            resources_install,
+        )
+        self.assertIn("third_party/resources/LICENSE", resources_docs)
+        self.assertTrue((ROOT / "debian/gnozzard-resources.manpages").is_file())
+        self.assertTrue((ROOT / "debian/gnozzard.postinst").is_file())
+        self.assertTrue((ROOT / "debian/gnozzard-resources.postinst").is_file())
+        self.assertTrue((ROOT / "debian/gnozzard-resources.postrm").is_file())
+        copyright_file = (ROOT / "debian/copyright").read_text()
+        self.assertIn("Files: third_party/resources/*", copyright_file)
+        self.assertIn("License: GPL-3+", copyright_file)
 
     def test_resources_button_sync_removes_stale_gnome_shell_actors(self):
         source = (

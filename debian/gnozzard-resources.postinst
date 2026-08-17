@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = configure ]; then
+    update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+    if [ -x /usr/lib/systemd/systemd-sysctl ]; then
+        /usr/lib/systemd/systemd-sysctl --prefix=/kernel/task_delayacct >/dev/null 2>&1 || true
+    fi
+fi
+
+#DEBHELPER#
+exit 0

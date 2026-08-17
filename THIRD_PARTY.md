@@ -14,6 +14,9 @@ Its AppStream metadata and `.typos.toml` retain their CC0-1.0 licences.
 The packaged fork keeps the visible name **Resources** while using the unique
 application ID `org.openresearchtools.GnozzardResources`; this prevents it from
 overwriting or replacing a distribution-provided Resources installation.
+It is distributed in the separate `gnozzard-resources` Debian package. That
+package installs this upstream GPL-3.0-or-later license, this attribution file,
+and the repository's complete Debian copyright metadata.
 
 ## Adwaita folder artwork
 

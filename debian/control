@@ -24,6 +24,7 @@ Architecture: any
 Depends:
  ${shlibs:Depends},
  ${misc:Depends},
+ gnozzard-resources (= ${binary:Version}),
  gnome-shell (>= 46),
  gnome-shell (<< 51),
  gnome-shell-extension-appindicator,
@@ -83,6 +84,27 @@ Description: fast classic single-workspace desktop layer for GNOME
  pinned apps, Show Desktop, desktop shortcuts and a Resources launcher.
  .
  It also provides native AppImage launching and Nautilus context actions, and
- bundles the Resources system monitor. Common GTK, Electron/Chromium, X11,
- Wayland, audio and FUSE runtime libraries are installed as package
- dependencies.
+ installs its matching Resources system monitor package. Common GTK,
+ Electron/Chromium, X11, Wayland, audio and FUSE runtime libraries are
+ installed as package dependencies.
+
+Package: gnozzard-resources
+Section: utils
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ desktop-file-utils,
+ libglib2.0-bin,
+ pkexec,
+ polkitd,
+ systemd
+Breaks:
+ gnozzard (<< ${binary:Version})
+Replaces:
+ gnozzard (<< ${binary:Version})
+Description: Gnozzard fork of the Resources system monitor
+ This package contains Gnozzard's namespaced Resources 1.8.0 fork, including
+ per-process and per-application disk read, disk write and I/O-wait metrics.
+ It uses distinct application IDs, executable names and settings paths so it
+ can coexist with a distribution-provided Resources package.

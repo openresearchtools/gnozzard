@@ -1,6 +1,3 @@
-debian/tmp/usr/bin/* usr/bin/
-debian/tmp/usr/libexec/* usr/libexec/
-debian/tmp/usr/share/* usr/share/
 extension/gnozzard@openresearchtools/* usr/share/gnome-shell/extensions/gnozzard@openresearchtools/
 helper/gnozzard usr/libexec/
 helper/gnozzard-deb-installer usr/libexec/
@@ -13,7 +10,4 @@ data/gnozzard-appimage.xml usr/share/mime/packages/
 data/gnozzard-session usr/libexec/
 data/gnozzard-session.desktop etc/xdg/autostart/
 data/gdm/99-gnozzard-background usr/share/gdm/dconf/
-data/sysctl/60-gnozzard-delayacct.conf usr/lib/sysctl.d/
 data/icons/Gnozzard/* usr/share/icons/Gnozzard/
-THIRD_PARTY.md usr/share/doc/gnozzard/
-third_party/resources/LICENSE usr/share/doc/gnozzard/

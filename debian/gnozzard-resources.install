@@ -1,0 +1,4 @@
+debian/tmp/usr/bin/* usr/bin/
+debian/tmp/usr/libexec/* usr/libexec/
+debian/tmp/usr/share/* usr/share/
+data/sysctl/60-gnozzard-delayacct.conf usr/lib/sysctl.d/

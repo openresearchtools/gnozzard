@@ -27,19 +27,21 @@ Gnozzard brings a classic single-workspace desktop model to modern GNOME, with
 one taskbar entry per window, a simple searchable application list, and
 continued support for GNOME's top bar, system controls, and tray applications.
 
-The `.deb` package also installs Desktop Icons NG, AppIndicator tray support,
+The `gnozzard` package also installs Desktop Icons NG, AppIndicator tray support,
 the native Gnozzard app, native AppImage and portable application support,
 AppImage MIME integration, and Nautilus actions for launching an AppImage or
 adding it to Applications with one click. Local `.desktop` launchers can also
 be added to Applications, while local `.deb` packages get a direct **Install
-Debian Package…** action. The package includes a lightly adapted fork of the
-GPL-3.0-or-later Resources 1.8.0 system monitor. It remains visibly named
-**Resources**, but uses Gnozzard-specific internal IDs and executable names so
-it can coexist with a distribution's stock `resources` package.
+Debian Package…** action. Its required `gnozzard-resources` companion package
+contains the lightly adapted GPL-3.0-or-later Resources 1.8.0 system monitor.
+It remains visibly named **Resources**, but uses Gnozzard-specific internal IDs
+and executable names so it can coexist with a distribution's stock `resources`
+package.
 
 ## Supported systems
 
-Packages are published for amd64 and arm64. The amd64 package is tested on
+Matching `gnozzard` and `gnozzard-resources` packages are published for amd64
+and arm64. The amd64 packages are tested on
 Debian 13 with GNOME Shell 48, Ubuntu 24.04 LTS with GNOME Shell 46, and Ubuntu
 26.04 LTS with GNOME Shell 50. Its extension metadata declares Shell 46–50 and
 the bundled Resources fork is built against the libadwaita 1.5 baseline used by
@@ -60,9 +62,10 @@ If the Open Research Tools APT repository is already configured:
 sudo apt install gnozzard
 ```
 
-APT automatically selects the package matching the system architecture and
-installs any missing declared dependencies. Log out and back in after
-installation.
+APT automatically selects both packages matching the system architecture and
+installs `gnozzard-resources` with the desktop package. Each GitHub Release also
+contains both packages for each supported architecture. Log out and back in
+after installation.
 
 The session bootstrap enables Gnozzard, Desktop Icons NG and AppIndicator once
 for each new user without replacing the rest of the GNOME top bar. On Ubuntu,
