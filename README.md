@@ -39,29 +39,30 @@ it can coexist with a distribution's stock `resources` package.
 
 ## Supported systems
 
-The amd64 package is tested on Debian 13 with GNOME Shell 48, Ubuntu 24.04 LTS
-with GNOME Shell 46, and Ubuntu 26.04 LTS with GNOME Shell 50. Its extension
-metadata declares Shell 46–50 and the bundled Resources fork is built against
-the libadwaita 1.5 baseline used by Ubuntu 24.04.
+Packages are published for amd64 and arm64. The amd64 package is tested on
+Debian 13 with GNOME Shell 48, Ubuntu 24.04 LTS with GNOME Shell 46, and Ubuntu
+26.04 LTS with GNOME Shell 50. Its extension metadata declares Shell 46–50 and
+the bundled Resources fork is built against the libadwaita 1.5 baseline used by
+Ubuntu 24.04.
 
 ## Install the package
 
-To download the newest published release and install it with APT in one
-command, run:
+For the first Open Research Tools installation on a system, this one command
+adds the archive key and repository, refreshes APT, and installs Gnozzard:
 
 ```sh
-wget -qO /tmp/gnozzard_amd64.deb https://github.com/openresearchtools/gnozzard/releases/latest/download/gnozzard_amd64.deb && sudo apt install /tmp/gnozzard_amd64.deb
+wget -qO /tmp/openresearchtools-archive-keyring.deb https://apt.openresearchtools.com/apt/releases/download/repo/openresearchtools-archive-keyring.deb && sudo apt install -y /tmp/openresearchtools-archive-keyring.deb && sudo apt update && sudo apt install -y gnozzard
 ```
 
-APT installs any missing declared dependencies and leaves dependencies that
-are already satisfied alone. Log out and back in after installation.
-
-Alternatively, download `gnozzard_amd64.deb` from the GitHub Release and
-install the local file:
+If the Open Research Tools APT repository is already configured:
 
 ```sh
-sudo apt install ./gnozzard_amd64.deb
+sudo apt install gnozzard
 ```
+
+APT automatically selects the package matching the system architecture and
+installs any missing declared dependencies. Log out and back in after
+installation.
 
 The session bootstrap enables Gnozzard, Desktop Icons NG and AppIndicator once
 for each new user without replacing the rest of the GNOME top bar. On Ubuntu,

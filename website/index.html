@@ -24,8 +24,7 @@
             <img src="github-mark.svg" width="22" height="22" alt="">
           </a>
           <nav class="top-actions" aria-label="Get Gnozzard">
-            <button class="button" type="button" data-open-dialog="install-dialog">Install</button>
-            <a class="button button-accent" href="https://github.com/openresearchtools/gnozzard/releases/latest/download/gnozzard_amd64.deb">Download</a>
+            <button class="button button-accent" type="button" data-open-dialog="install-dialog">Install</button>
           </nav>
         </div>
       </header>
@@ -61,23 +60,23 @@
       </div>
 
       <section class="install-option">
-        <h3>One-command install</h3>
-        <p>Download the latest package and let APT install its dependencies.</p>
+        <h3>First Open Research Tools install</h3>
+        <p>Add the signed Open Research Tools repository and install Gnozzard with one command.</p>
         <div class="code-block">
-          <button class="copy-button" type="button" data-copy="wget-command">Copy</button>
-          <pre><code id="wget-command">wget -qO /tmp/gnozzard_amd64.deb https://github.com/openresearchtools/gnozzard/releases/latest/download/gnozzard_amd64.deb &amp;&amp; sudo apt install /tmp/gnozzard_amd64.deb</code></pre>
+          <button class="copy-button" type="button" data-copy="first-install-command">Copy</button>
+          <pre><code id="first-install-command">wget -qO /tmp/openresearchtools-archive-keyring.deb https://apt.openresearchtools.com/apt/releases/download/repo/openresearchtools-archive-keyring.deb &amp;&amp; sudo apt install -y /tmp/openresearchtools-archive-keyring.deb &amp;&amp; sudo apt update &amp;&amp; sudo apt install -y gnozzard</code></pre>
         </div>
       </section>
 
       <section class="install-option">
-        <h3>Download from GitHub Releases</h3>
-        <p><a href="https://github.com/openresearchtools/gnozzard/releases/latest/download/gnozzard_amd64.deb">Download gnozzard_amd64.deb</a>, open a terminal in the download folder, and run:</p>
+        <h3>Repository already configured</h3>
+        <p>If another Open Research Tools package has already added the repository:</p>
         <div class="code-block">
-          <button class="copy-button" type="button" data-copy="apt-command">Copy</button>
-          <pre><code id="apt-command">sudo apt install ./gnozzard_amd64.deb</code></pre>
+          <button class="copy-button" type="button" data-copy="apt-install-command">Copy</button>
+          <pre><code id="apt-install-command">sudo apt install gnozzard</code></pre>
         </div>
       </section>
-      <p class="dialog-note">Log out and back in after installation.</p>
+      <p class="dialog-note">APT automatically chooses the amd64 or arm64 package for this system. Log out and back in after installation.</p>
     </dialog>
 
     <dialog class="dialog privacy-dialog" id="privacy-dialog" aria-labelledby="privacy-title">
