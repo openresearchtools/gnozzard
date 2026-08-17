@@ -117,34 +117,31 @@ jobs:
     if: >-
       always() &&
       needs.build-context.result == 'success'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        architecture: [amd64, arm64]
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.build-context.outputs.sha }}
 
       - name: Install Podman when needed
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
         shell: bash
         run: |
+          test "$(dpkg --print-architecture)" = "$ARCHITECTURE"
           if ! command -v podman >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install --yes podman
           fi
           podman --version
-
-      - name: Enable ARM64 container emulation
-        if: matrix.architecture == 'arm64'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes qemu-user-static binfmt-support
-          update-binfmts --display qemu-aarch64 || true
-          podman run --rm --arch arm64 debian:trixie \
-            sh -euxc 'test "$(uname -m)" = aarch64'
 
       - name: Build and check in Debian 13
         env:

@@ -243,12 +243,17 @@ class ExtensionPackagingTests(unittest.TestCase):
 
     def test_github_artifacts_build_amd64_and_arm64_packages(self):
         workflow = (ROOT / ".github/workflows/build-deb.yml").read_text()
-        self.assertIn("architecture: [amd64, arm64]", workflow)
+        self.assertIn("architecture: amd64", workflow)
+        self.assertIn("architecture: arm64", workflow)
+        self.assertIn("runner: ubuntu-24.04-arm", workflow)
+        self.assertIn("runs-on: ${{ matrix.runner }}", workflow)
         self.assertIn("needs.build-context.result == 'success'", workflow)
         self.assertIn('--arch "$ARCHITECTURE"', workflow)
         self.assertIn("--env ARCHITECTURE", workflow)
-        self.assertIn("qemu-user-static binfmt-support", workflow)
-        self.assertIn("'test \"$(uname -m)\" = aarch64'", workflow)
+        self.assertIn(
+            'test "$(dpkg --print-architecture)" = "$ARCHITECTURE"', workflow
+        )
+        self.assertNotIn("qemu-user-static", workflow)
         self.assertIn(
             "name: gnozzard-debian-13-${{ matrix.architecture }}", workflow
         )
