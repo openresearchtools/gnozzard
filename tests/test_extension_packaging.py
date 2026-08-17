@@ -248,6 +248,7 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn('--arch "$ARCHITECTURE"', workflow)
         self.assertIn("--env ARCHITECTURE", workflow)
         self.assertIn("qemu-user-static binfmt-support", workflow)
+        self.assertIn("'test \"$(uname -m)\" = aarch64'", workflow)
         self.assertIn(
             "name: gnozzard-debian-13-${{ matrix.architecture }}", workflow
         )

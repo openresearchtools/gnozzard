@@ -142,8 +142,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes qemu-user-static binfmt-support
-          sudo update-binfmts --enable qemu-aarch64
-          update-binfmts --display qemu-aarch64
+          update-binfmts --display qemu-aarch64 || true
+          podman run --rm --arch arm64 debian:trixie \
+            sh -euxc 'test "$(uname -m)" = aarch64'
 
       - name: Build and check in Debian 13
         env:
