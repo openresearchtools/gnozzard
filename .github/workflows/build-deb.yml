@@ -187,11 +187,63 @@ jobs:
             dist/gnozzard_*.deb
             dist/gnozzard_*.deb.sha256
 
+  build-source:
+    needs: build-context
+    if: >-
+      always() &&
+      needs.build-context.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build-context.outputs.sha }}
+
+      - name: Install Podman when needed
+        shell: bash
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes podman
+          fi
+          podman --version
+
+      - name: Build complete Debian source package
+        shell: bash
+        run: |
+          mkdir -p dist-source
+          podman run --rm \
+            --arch amd64 \
+            --volume "$PWD:/source:ro,Z" \
+            --volume "$PWD/dist-source:/out:Z" \
+            debian:trixie \
+            bash -euxo pipefail -c '
+              mkdir -p /work/gnozzard
+              cp -a /source/. /work/gnozzard/
+              cd /work/gnozzard
+              apt-get update
+              apt-get install --yes --no-install-recommends ca-certificates git
+              ./scripts/install-build-deps.sh
+              ./scripts/vendor-cargo.sh
+              dpkg-buildpackage --build=source --no-sign
+              cp /work/gnozzard_*.dsc /work/gnozzard_*.tar.* /out/
+              check_dir="$(mktemp -d)"
+              dpkg-source --extract /work/gnozzard_*.dsc "$check_dir/source"
+            '
+
+      - name: Upload Debian source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnozzard-debian-source
+          if-no-files-found: error
+          path: |
+            dist-source/gnozzard_*.dsc
+            dist-source/gnozzard_*.tar.*
+
   publish-release:
     if: >-
       github.event_name == 'workflow_dispatch' &&
       inputs.publication != 'artifact-only'
-    needs: [build-context, build-deb]
+    needs: [build-context, build-deb, build-source]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -205,6 +257,12 @@ jobs:
         with:
           pattern: gnozzard-debian-13-*
           merge-multiple: true
+          path: release-download
+
+      - name: Download verified Debian source package
+        uses: actions/download-artifact@v4
+        with:
+          name: gnozzard-debian-source
           path: release-download
 
       - name: Prepare latest-download asset
@@ -232,6 +290,14 @@ jobs:
             )
             cp "$versioned_deb" "release-assets/gnozzard_${architecture}.deb"
           done
+
+          source_dsc="$(find release-download -maxdepth 1 -type f -name "gnozzard_${changelog_version}.dsc" -print -quit)"
+          source_tar="$(find release-download -maxdepth 1 -type f -name "gnozzard_${changelog_version}.tar.*" -print -quit)"
+          test -n "$source_dsc"
+          test -n "$source_tar"
+          source_check="$(mktemp -d)"
+          dpkg-source --extract "$source_dsc" "$source_check/gnozzard"
+          cp "$source_dsc" "$source_tar" release-assets/
 
       - name: Publish GitHub release
         env:
