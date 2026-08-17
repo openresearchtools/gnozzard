@@ -643,6 +643,7 @@ class TaskButton {
         this._icon = this._windowIcon();
         this._content.add_child(this._icon);
         this._label = new St.Label({
+            style_class: 'gnozzard-task-label',
             text: window.get_title() || 'Application',
             y_align: Clutter.ActorAlign.CENTER,
             x_expand: true,
@@ -751,7 +752,6 @@ class TaskButton {
             this.actor.add_style_class_name('focused');
         else
             this.actor.remove_style_class_name('focused');
-        this.actor.opacity = this.window.minimized ? 150 : 255;
     }
 
     destroy() {

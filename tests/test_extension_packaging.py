@@ -227,6 +227,34 @@ class ExtensionPackagingTests(unittest.TestCase):
         panel_state = source.split("this._panelState = {", 1)[1].split("};", 1)[0]
         self.assertNotIn("taskOffset", panel_state)
 
+    def test_task_titles_stay_white_when_windows_are_minimized(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        stylesheet = (
+            ROOT / "extension/gnozzard@openresearchtools/stylesheet.css"
+        ).read_text()
+        self.assertIn("style_class: 'gnozzard-task-label'", source)
+        self.assertNotIn("opacity = this.window.minimized", source)
+        task_label = stylesheet.split(".gnozzard-task-label", 1)[1].split(
+            "}", 1
+        )[0]
+        self.assertIn("color: #ffffff;", task_label)
+
+    def test_github_artifacts_build_amd64_and_arm64_packages(self):
+        workflow = (ROOT / ".github/workflows/build-deb.yml").read_text()
+        self.assertIn("architecture: [amd64, arm64]", workflow)
+        self.assertIn('--arch "$ARCHITECTURE"', workflow)
+        self.assertIn("--env ARCHITECTURE", workflow)
+        self.assertIn("qemu-user-static binfmt-support", workflow)
+        self.assertIn(
+            "name: gnozzard-debian-13-${{ matrix.architecture }}", workflow
+        )
+        self.assertIn("for architecture in amd64 arm64; do", workflow)
+        self.assertIn(
+            '"release-assets/gnozzard_${architecture}.deb"', workflow
+        )
+
     def test_resources_button_sync_removes_stale_gnome_shell_actors(self):
         source = (
             ROOT / "extension/gnozzard@openresearchtools/extension.js"

@@ -24,5 +24,8 @@ override_dh_auto_clean:
 	rm -f extension/gnozzard@openresearchtools/schemas/gschemas.compiled
 	dh_auto_clean
 
+override_dh_clean:
+	dh_clean -XCargo.toml.orig
+
 override_dh_missing:
 	dh_missing --fail-missing

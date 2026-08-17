@@ -47,6 +47,10 @@
   spacing: 7px;
 }
 
+.gnozzard-task-label {
+  color: #ffffff;
+}
+
 .gnozzard-show-desktop {
   min-width: 11px;
   padding: 0 4px;

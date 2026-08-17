@@ -90,7 +90,7 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "version=$next_version" >> "$GITHUB_OUTPUT"
 
-  debian-13:
+  build-context:
     needs: prepare-release
     if: >-
       always() &&
@@ -112,6 +112,18 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "version=$(dpkg-parsechangelog -S Version)" >> "$GITHUB_OUTPUT"
 
+  build-deb:
+    needs: build-context
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build-context.outputs.sha }}
+
       - name: Install Podman when needed
         shell: bash
         run: |
@@ -121,11 +133,24 @@ jobs:
           fi
           podman --version
 
+      - name: Enable ARM64 container emulation
+        if: matrix.architecture == 'arm64'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes qemu-user-static binfmt-support
+          sudo update-binfmts --enable qemu-aarch64
+          update-binfmts --display qemu-aarch64
+
       - name: Build and check in Debian 13
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
         shell: bash
         run: |
           mkdir -p dist
           podman run --rm \
+            --arch "$ARCHITECTURE" \
+            --env ARCHITECTURE \
             --volume "$PWD:/source:ro,Z" \
             --volume "$PWD/dist:/out:Z" \
             debian:trixie \
@@ -140,6 +165,9 @@ jobs:
               ./scripts/check.sh
               ./scripts/build-deb.sh
               lintian --tag-display-limit 0 /work/gnozzard_*.deb
+              package="$(find /work -maxdepth 1 -type f -name "gnozzard_*_${ARCHITECTURE}.deb" -print -quit)"
+              test -n "$package"
+              test "$(dpkg-deb --field "$package" Architecture)" = "$ARCHITECTURE"
               cp /work/gnozzard_*.deb /out/
               cd /out
               for package in gnozzard_*.deb; do
@@ -152,7 +180,7 @@ jobs:
       - name: Upload Debian package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gnozzard-debian-13-amd64
+          name: gnozzard-debian-13-${{ matrix.architecture }}
           if-no-files-found: error
           path: |
             dist/gnozzard_*.deb
@@ -162,51 +190,53 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' &&
       inputs.publication != 'artifact-only'
-    needs: debian-13
+    needs: [build-context, build-deb]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.debian-13.outputs.sha }}
+          ref: ${{ needs.build-context.outputs.sha }}
 
-      - name: Download verified Debian package
+      - name: Download verified Debian packages
         uses: actions/download-artifact@v4
         with:
-          name: gnozzard-debian-13-amd64
+          pattern: gnozzard-debian-13-*
+          merge-multiple: true
           path: release-download
 
       - name: Prepare latest-download asset
         shell: bash
         run: |
           set -euo pipefail
-          versioned_deb="$(find release-download -maxdepth 1 -type f -name 'gnozzard_*_amd64.deb' -print -quit)"
-          test -n "$versioned_deb"
-          test -f "$versioned_deb.sha256"
           changelog_version="$(dpkg-parsechangelog -S Version)"
-          package_version="$(dpkg-deb --field "$versioned_deb" Version)"
-          package_name="$(dpkg-deb --field "$versioned_deb" Package)"
-          package_architecture="$(dpkg-deb --field "$versioned_deb" Architecture)"
-          test "$package_name" = gnozzard
-          test "$package_architecture" = amd64
-          if [[ "$package_version" != "$changelog_version" ]]; then
-            echo "Package version $package_version does not match changelog $changelog_version" >&2
-            exit 1
-          fi
-          (
-            cd release-download
-            sha256sum --check "$(basename "$versioned_deb.sha256")"
-          )
-
           mkdir -p release-assets
-          cp "$versioned_deb" release-assets/gnozzard_amd64.deb
+          for architecture in amd64 arm64; do
+            versioned_deb="$(find release-download -maxdepth 1 -type f -name "gnozzard_*_${architecture}.deb" -print -quit)"
+            test -n "$versioned_deb"
+            test -f "$versioned_deb.sha256"
+            package_version="$(dpkg-deb --field "$versioned_deb" Version)"
+            package_name="$(dpkg-deb --field "$versioned_deb" Package)"
+            package_architecture="$(dpkg-deb --field "$versioned_deb" Architecture)"
+            test "$package_name" = gnozzard
+            test "$package_architecture" = "$architecture"
+            if [[ "$package_version" != "$changelog_version" ]]; then
+              echo "Package version $package_version does not match changelog $changelog_version" >&2
+              exit 1
+            fi
+            (
+              cd release-download
+              sha256sum --check "$(basename "$versioned_deb.sha256")"
+            )
+            cp "$versioned_deb" "release-assets/gnozzard_${architecture}.deb"
+          done
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           PUBLICATION: ${{ inputs.publication }}
-          RELEASE_SHA: ${{ needs.debian-13.outputs.sha }}
+          RELEASE_SHA: ${{ needs.build-context.outputs.sha }}
         shell: bash
         run: |
           set -euo pipefail
