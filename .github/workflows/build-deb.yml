@@ -271,6 +271,27 @@ jobs:
           version="$(dpkg-parsechangelog -S Version)"
           tag="v$version"
           title="Gnozzard $version"
+          install_notes="$(cat <<EOF
+          <!-- openresearchtools-apt-install:start -->
+          ## Install on Debian 13+ or Ubuntu 24.04/26.04+
+
+          For the first Open Research Tools installation on this system:
+
+          \`\`\`bash
+          wget -qO /tmp/keyring.deb https://keyring.openresearchtools.com && sudo apt install -y /tmp/keyring.deb && sudo apt update && sudo apt install -y gnozzard=$version
+          \`\`\`
+
+          If the Open Research Tools APT repository is already configured:
+
+          \`\`\`bash
+          sudo apt update && sudo apt install -y gnozzard=$version
+          \`\`\`
+
+          APT selects an available system architecture and installs the matching
+          \`gnozzard-resources\` package automatically when required.
+          <!-- openresearchtools-apt-install:end -->
+          EOF
+          )"
 
           while IFS= read -r published_version; do
             if dpkg --compare-versions "$version" lt "$published_version"; then
@@ -300,11 +321,19 @@ jobs:
               echo "Increase the version in debian/changelog first." >&2
               exit 1
             fi
+            notes_arguments=()
+            if [[ "$PUBLICATION" == release ]]; then
+              existing_body="$(gh release view "$tag" --json body --jq '.body // ""')"
+              if ! grep -Fq '<!-- openresearchtools-apt-install:start -->' <<<"$existing_body"; then
+                notes_arguments+=(--notes "$install_notes"$'\n\n'"$existing_body")
+              fi
+            fi
             gh release edit "$tag" \
               --title "$title" \
               --target "$RELEASE_SHA" \
               --prerelease="$prerelease" \
-              --latest="$latest"
+              --latest="$latest" \
+              "${notes_arguments[@]}"
             gh release upload "$tag" release-assets/* --clobber
           else
             arguments=(
@@ -317,7 +346,7 @@ jobs:
             if [[ "$PUBLICATION" == prerelease ]]; then
               arguments+=(--prerelease)
             else
-              arguments+=(--latest)
+              arguments+=(--latest --notes "$install_notes")
             fi
             gh release create "${arguments[@]}"
           fi
