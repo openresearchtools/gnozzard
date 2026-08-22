@@ -7,7 +7,6 @@ data/com.openresearchtools.GnozzardSettings.desktop usr/share/applications/
 data/gnozzard-settings usr/bin/
 data/logo.png usr/share/gnozzard/
 data/gnozzard-appimage.xml usr/share/mime/packages/
-data/gnozzard-session usr/libexec/
-data/gnozzard-session.desktop etc/xdg/autostart/
+data/90_gnozzard.gschema.override usr/share/glib-2.0/schemas/
 data/gdm/99-gnozzard-background usr/share/gdm/dconf/
 data/icons/Gnozzard/* usr/share/icons/Gnozzard/

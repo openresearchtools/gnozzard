@@ -67,17 +67,20 @@ installs `gnozzard-resources` with the desktop package. Each GitHub Release also
 contains both packages for each supported architecture. Log out and back in
 after installation.
 
-The session bootstrap enables Gnozzard, Desktop Icons NG and AppIndicator once
-for each new user without replacing the rest of the GNOME top bar. On Ubuntu,
-it disables Ubuntu Dock once so it does not duplicate Gnozzard's taskbar.
-Later extension choices are preserved across logins.
+GNOME reads the package's default extension set before it builds a new user's
+desktop: Gnozzard, Desktop Icons NG and AppIndicator are enabled, while Ubuntu
+Dock is disabled so it cannot duplicate Gnozzard's taskbar. Profiles with an
+existing extension preference keep their own choices; no login-time process
+rewrites extension state. For an existing profile that has different choices,
+open Gnozzard once and enable Gnozzard, Desktop Icons and AppIndicator there;
+disable Ubuntu Dock in the same window if it still appears.
 
 ## Repository layout
 
 - `extension/` — GNOME Shell extension and settings schema
 - `helper/` — AppImage launcher/registrar and desktop shortcut helper
 - `integrations/nautilus/` — AppImage right-click actions
-- `data/` — MIME, desktop, and session bootstrap integration
+- `data/` — MIME, desktop, settings and GNOME default integration
 - `third_party/resources/` — pinned Resources v1.8.0 source
 - `debian/` — Debian source package metadata
 

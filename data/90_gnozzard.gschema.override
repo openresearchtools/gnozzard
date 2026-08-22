@@ -1,0 +1,3 @@
+[org.gnome.shell]
+enabled-extensions=['gnozzard@openresearchtools', 'ding@rastersoft.com', 'ubuntu-appindicators@ubuntu.com']
+disabled-extensions=['ubuntu-dock@ubuntu.com']

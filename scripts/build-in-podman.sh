@@ -27,10 +27,10 @@ podman run --rm --pull=newer \
         ./scripts/check.sh
         ./scripts/build-deb.sh
         lintian --tag-display-limit 0 /work/gnozzard_*.deb
-        cp /work/gnozzard_*.deb /work/gnozzard_*.buildinfo \
+        cp /work/gnozzard*.deb /work/gnozzard_*.buildinfo \
             /work/gnozzard_*.changes /out/
         cd /out
-        for package in gnozzard_*.deb; do
+        for package in gnozzard*.deb; do
             sha256sum "$package" > "$package.sha256"
             sha256sum --check "$package.sha256"
         done

@@ -184,7 +184,6 @@ class GnozzardSettings(Adw.Application):
             response = "cancel"
         self._dialog = None
         if response == "turn-off":
-            self._mark_session_initialized()
             self._set_extension(GNOZZARD_UUID, False)
         else:
             self._set_extension_row(GNOZZARD_UUID, True)
@@ -208,11 +207,6 @@ class GnozzardSettings(Adw.Application):
             self._extension_rows[uuid].set_active(active)
         finally:
             self._updating_extension_rows = False
-
-    def _mark_session_initialized(self):
-        directory = Path(GLib.get_user_state_dir()) / "gnozzard"
-        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-        (directory / "session-initialized").write_text("initialized\n")
 
     def _show_error(self, heading, error):
         if self._window is None:

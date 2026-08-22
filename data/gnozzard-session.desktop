@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Enable Gnozzard
-Comment=Enable the classic Gnozzard desktop extensions for this user
-Exec=/usr/libexec/gnozzard-session
-NoDisplay=true
-OnlyShowIn=GNOME;
-X-GNOME-Autostart-Delay=2

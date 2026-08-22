@@ -10,6 +10,7 @@ import St from 'gi://St';
 
 import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -21,7 +22,7 @@ const CAPPED_TASK_BUTTON_WIDTH = 260;
 const MIN_TASK_BUTTON_WIDTH = 96;
 const TASK_PAGE_STEP = 5;
 const TASK_PAGE_BUTTON_WIDTH = 28;
-const RESOURCES_BUTTON_NAME = 'gnozzardResourcesButton';
+const RESOURCES_BUTTON_ROLE = 'gnozzardResourcesButton';
 function stopEvent() {
     return Clutter.EVENT_STOP;
 }
@@ -36,15 +37,6 @@ function launchGraphicalCommand(commandArguments, name) {
     );
     const context = global.create_app_launch_context(global.get_current_time(), -1);
     appInfo.launch([], context);
-}
-
-function removeResourcesButtons() {
-    for (const child of Main.panel?._leftBox?.get_children() ?? []) {
-        const isGnozzardButton = child.get_name?.() === RESOURCES_BUTTON_NAME ||
-            child.has_style_class_name?.('gnozzard-resources-button');
-        if (isGnozzardButton)
-            child.destroy();
-    }
 }
 
 function managedAppForWindow(window) {
@@ -100,6 +92,22 @@ class SignalStore {
         return id;
     }
 
+    disconnectObject(object) {
+        const remaining = [];
+        for (const [connectedObject, id] of this._signals) {
+            if (connectedObject !== object) {
+                remaining.push([connectedObject, id]);
+                continue;
+            }
+            try {
+                connectedObject.disconnect(id);
+            } catch (_error) {
+                // The object may be in its unmanaged/destroyed signal.
+            }
+        }
+        this._signals = remaining;
+    }
+
     clear() {
         for (const [object, id] of this._signals) {
             try {
@@ -132,7 +140,11 @@ class AppContextMenu {
         const isPinned = pinned.includes(desktopId);
 
         const launch = new PopupMenu.PopupMenuItem('Open');
-        launch.connect('activate', () => this._app.open_new_window(-1));
+        launch.connect('activate', () => {
+            this._refresh(true);
+            this._app.activate();
+            Main.overview.hide();
+        });
         this.menu.addMenuItem(launch);
 
         const isAppImage = desktopId.startsWith('gnozzard-appimage-');
@@ -178,16 +190,17 @@ class AppContextMenu {
 
         const pin = new PopupMenu.PopupMenuItem(isPinned ? 'Unpin' : 'Pin');
         pin.connect('activate', () => {
+            this._refresh(true);
             const next = isPinned
                 ? pinned.filter(id => id !== desktopId)
                 : [...pinned, desktopId];
             this._settings.set_strv('pinned-apps', next);
-            this._refresh();
         });
         this.menu.addMenuItem(pin);
 
         const desktop = new PopupMenu.PopupMenuItem('Add to Desktop');
         desktop.connect('activate', () => {
+            this._refresh(true);
             try {
                 Gio.Subprocess.new(
                     ['/usr/libexec/gnozzard', 'app-to-desktop', desktopId],
@@ -208,6 +221,7 @@ class AppContextMenu {
 
             const remove = new PopupMenu.PopupMenuItem('Delete from Applications');
             remove.connect('activate', () => {
+                this._refresh(true);
                 const nextPinned = this._settings.get_strv('pinned-apps')
                     .filter(id => id !== desktopId);
                 this._settings.set_strv('pinned-apps', nextPinned);
@@ -219,7 +233,6 @@ class AppContextMenu {
                     process.wait_check_async(null, (subprocess, result) => {
                         try {
                             subprocess.wait_check_finish(result);
-                            this._refresh();
                         } catch (error) {
                             logError(error, `Could not remove ${desktopId}`);
                         }
@@ -263,7 +276,6 @@ class AppContextMenu {
                         rename.wait_check_async(null, (subprocess, renameResult) => {
                             try {
                                 subprocess.wait_check_finish(renameResult);
-                                this._refresh();
                             } catch (error) {
                                 logError(error, `Could not rename ${desktopId}`);
                             }
@@ -299,7 +311,7 @@ class ApplicationRow {
             x_align: Clutter.ActorAlign.FILL,
             can_focus: true,
             reactive: true,
-            button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
+            button_mask: St.ButtonMask.ONE,
         });
         const content = new St.BoxLayout({
             style_class: 'gnozzard-app-row-content',
@@ -326,7 +338,8 @@ class ApplicationRow {
             return Clutter.EVENT_PROPAGATE;
         });
         this.actor.connect('clicked', () => {
-            app.open_new_window(-1);
+            app.activate();
+            Main.overview.hide();
             refresh(true);
         });
     }
@@ -335,35 +348,31 @@ class ApplicationRow {
         this._context?.destroy();
         this.actor.destroy();
     }
-
-    get contextActor() {
-        return this._context?.menu.actor ?? null;
-    }
 }
 
 class ApplicationsMenu {
-    constructor(settings, panel, monitorIndex) {
+    constructor(settings, panel, monitorIndex, manager) {
         this._settings = settings;
-        this._panel = panel;
         this._monitorIndex = monitorIndex;
         this._rows = [];
         this._dirty = true;
-        this._open = false;
-        this._grab = null;
         this._searchTimeout = 0;
         this._signals = new SignalStore();
-        this._overlay = new St.Widget({
-            reactive: true,
-            visible: false,
-        });
-        this._dismissArea = new St.Widget({reactive: true});
-        this._overlay.add_child(this._dismissArea);
+        this.menu = new PopupMenu.PopupMenu(
+            panel.applicationsButton,
+            0,
+            St.Side.BOTTOM
+        );
+        this.menu.setSourceAlignment(0);
+        this.menu.actor.add_style_class_name('gnozzard-applications-popup');
+        Main.uiGroup.add_child(this.menu.actor);
+        this.menu.actor.hide();
+        manager.addMenu(this.menu);
         this.actor = new St.BoxLayout({
             style_class: 'gnozzard-app-menu',
             vertical: true,
             reactive: true,
         });
-        this._overlay.add_child(this.actor);
         this._search = new St.Entry({
             style_class: 'gnozzard-app-search',
             hint_text: 'Search applications',
@@ -408,41 +417,24 @@ class ApplicationsMenu {
             this.close();
             const app = Shell.AppSystem.get_default()
                 .lookup_app('com.openresearchtools.GnozzardSettings.desktop');
-            if (app)
+            if (app) {
                 app.activate();
-            else
+                Main.overview.hide();
+            } else {
                 Main.notifyError('Gnozzard', 'The Gnozzard app is not installed correctly.');
-        });
-
-        this._signals.connect(this._overlay, 'notify::visible', () => {
-            if (this._overlay.visible && !this._open)
-                this._overlay.hide();
-        });
-        this._signals.connect(this._dismissArea, 'button-press-event', () => {
-            this.close();
-            return Clutter.EVENT_STOP;
-        });
-        this._signals.connect(this._dismissArea, 'touch-event', (_actor, event) => {
-            if (event.type() === Clutter.EventType.TOUCH_BEGIN) {
-                this.close();
-                return Clutter.EVENT_STOP;
             }
-            return Clutter.EVENT_PROPAGATE;
         });
-
-        Main.layoutManager.addChrome(this._overlay, {
-            affectsStruts: false,
-            trackFullscreen: true,
+        this.menu.box.add_child(this.actor);
+        this._signals.connect(this.menu, 'open-state-changed', (_menu, open) => {
+            if (!open)
+                this._resetSearch();
         });
-        // addChrome() may map an actor even when it was constructed hidden.
-        // Keep the applications menu closed until the user asks for it.
-        this._overlay.hide();
         this._signals.connect(this._search.clutter_text, 'text-changed', () => {
             if (this._searchTimeout)
                 GLib.source_remove(this._searchTimeout);
             this._searchTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 90, () => {
                 this._searchTimeout = 0;
-                if (this._overlay.visible)
+                if (this.menu.isOpen)
                     this._rebuild();
                 else
                     this._dirty = true;
@@ -455,16 +447,12 @@ class ApplicationsMenu {
             () => this._markDirty()
         );
         this._signals.connect(settings, 'changed::pinned-apps', () => this._markDirty());
-        this._signals.connect(global.display, 'notify::focus-window', () => {
-            if (this._overlay.visible)
-                this.close();
-        });
         this.relayout();
     }
 
     _markDirty() {
         this._dirty = true;
-        if (this._overlay.visible)
+        if (this.menu.isOpen)
             this._rebuild();
     }
 
@@ -530,11 +518,6 @@ class ApplicationsMenu {
             return;
         const top = Main.panel?.height ?? 0;
         const height = Math.max(240, monitor.height - top - PANEL_HEIGHT);
-        this._overlay.set_position(monitor.x, monitor.y);
-        this._overlay.set_size(monitor.width, monitor.height);
-        this._dismissArea.set_position(0, 0);
-        this._dismissArea.set_size(monitor.width, monitor.height);
-        this.actor.set_position(0, monitor.height - PANEL_HEIGHT - height);
         const width = Math.min(
             MENU_MAX_WIDTH,
             Math.max(MENU_MIN_WIDTH, Math.floor(monitor.width * MENU_WIDTH_RATIO))
@@ -543,33 +526,26 @@ class ApplicationsMenu {
     }
 
     toggle() {
-        if (this._overlay.visible)
+        if (this.menu.isOpen)
             this.close();
         else
             this.open();
     }
 
     open() {
-        this._open = true;
+        Main.overview.hide();
         this.relayout();
         if (this._dirty)
             this._rebuild();
-        this._overlay.show();
-        this._overlay.get_parent()?.set_child_above_sibling(this._overlay, null);
-        this._grab = Main.pushModal(this._overlay, {
-            actionMode: Shell.ActionMode.NORMAL,
-        });
+        this.menu.open(true);
         global.stage.set_key_focus(this._search.clutter_text);
     }
 
     close() {
-        this._open = false;
-        this._overlay.hide();
-        if (this._grab) {
-            Main.popModal(this._grab);
-            this._grab = null;
-        }
-        global.stage.set_key_focus(null);
+        this.menu.close(true);
+    }
+
+    _resetSearch() {
         if (this._search.get_text() !== '') {
             this._search.set_text('');
             if (this._searchTimeout) {
@@ -578,7 +554,6 @@ class ApplicationsMenu {
             }
             this._dirty = true;
         }
-        console.debug('gnozzard: Applications menu closed');
     }
 
     destroy() {
@@ -586,8 +561,8 @@ class ApplicationsMenu {
             GLib.source_remove(this._searchTimeout);
         this._clearRows();
         this._signals.clear();
-        Main.layoutManager.removeChrome(this._overlay);
-        this._overlay.destroy();
+        this.menu.destroy();
+        this.menu = null;
     }
 }
 
@@ -637,7 +612,7 @@ class TaskButton {
             can_focus: true,
             reactive: true,
             x_expand: fixedWidth === null,
-            button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
+            button_mask: St.ButtonMask.ONE,
         };
         if (fixedWidth !== null) {
             actorProperties.min_width = fixedWidth;
@@ -648,7 +623,8 @@ class TaskButton {
         this.actor = new St.Button(actorProperties);
         this.actor._delegate = this;
         this._content = new St.BoxLayout({style_class: 'gnozzard-task-content'});
-        this._icon = this._windowIcon();
+        this._app = this._windowApp();
+        this._icon = this._iconForApp(this._app);
         this._content.add_child(this._icon);
         this._label = new St.Label({
             style_class: 'gnozzard-task-label',
@@ -677,20 +653,8 @@ class TaskButton {
             this._label.set_text(title);
             // DING maps its desktop surface before adding the @! marker used
             // to identify that surface. Remove the temporary task immediately.
-            if (title.startsWith('@!'))
+            if (title.startsWith('@!') || title.startsWith('Desktop Icons '))
                 onChanged();
-        });
-        this._signals.connect(window, 'notify::minimized', () => this.updateState());
-        this._signals.connect(window, 'unmanaged', onChanged);
-        this._iconRetryCount = 0;
-        this._iconRetry = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-            const resolved = this.refreshIcon();
-            this._iconRetryCount++;
-            if (resolved || this._iconRetryCount >= 8) {
-                this._iconRetry = 0;
-                return GLib.SOURCE_REMOVE;
-            }
-            return GLib.SOURCE_CONTINUE;
         });
         this.updateState();
     }
@@ -723,8 +687,7 @@ class TaskButton {
         return tracked;
     }
 
-    _windowIcon() {
-        const app = this._windowApp();
+    _iconForApp(app) {
         return app?.create_icon_texture(20) ?? new St.Icon({
             icon_name: 'application-x-executable-symbolic',
             icon_size: 20,
@@ -733,15 +696,13 @@ class TaskButton {
 
     refreshIcon() {
         const app = this._windowApp();
-        const resolved = app !== null && !app.is_window_backed();
-        const replacement = app?.create_icon_texture(20) ?? new St.Icon({
-            icon_name: 'application-x-executable-symbolic',
-            icon_size: 20,
-        });
+        if (app === this._app)
+            return;
+        this._app = app;
+        const replacement = this._iconForApp(app);
         this._content.insert_child_at_index(replacement, 0);
         this._icon.destroy();
         this._icon = replacement;
-        return resolved;
     }
 
     _activateOrMinimise() {
@@ -750,9 +711,18 @@ class TaskButton {
             this.window.minimize();
             return;
         }
-        if (this.window.minimized)
-            this.window.unminimize();
-        this.window.activate(global.get_current_time());
+        Main.activateWindow(this.window);
+    }
+
+    setFixedWidth(fixedWidth) {
+        const fixed = fixedWidth !== null;
+        this.actor.x_expand = !fixed;
+        this.actor.min_width_set = fixed;
+        this.actor.natural_width_set = fixed;
+        if (fixed) {
+            this.actor.min_width = fixedWidth;
+            this.actor.natural_width = fixedWidth;
+        }
     }
 
     updateState() {
@@ -763,9 +733,6 @@ class TaskButton {
     }
 
     destroy() {
-        if (this._iconRetry)
-            GLib.source_remove(this._iconRetry);
-        this._iconRetry = 0;
         this._context?.destroy();
         this._draggable = null;
         this._signals.clear();
@@ -774,7 +741,14 @@ class TaskButton {
 }
 
 class ClassicPanel {
-    constructor(settings, monitorIndex, sharedState, onWindowsChanged, onOrderChanged) {
+    constructor(
+        settings,
+        monitorIndex,
+        sharedState,
+        applicationsMenuManager,
+        onWindowsChanged,
+        onOrderChanged
+    ) {
         this._settings = settings;
         this._monitorIndex = monitorIndex;
         this._sharedState = sharedState;
@@ -816,7 +790,12 @@ class ClassicPanel {
             can_focus: true,
         });
         this.actor.add_child(this._showDesktop);
-        this._menu = new ApplicationsMenu(settings, this, monitorIndex);
+        this._menu = new ApplicationsMenu(
+            settings,
+            this,
+            monitorIndex,
+            applicationsMenuManager
+        );
         this.applicationsButton.connect('clicked', () => this._menu.toggle());
         this._taskPrevious.connect('clicked', () => this._moveTaskPage(-TASK_PAGE_STEP));
         this._taskNext.connect('clicked', () => this._moveTaskPage(TASK_PAGE_STEP));
@@ -873,22 +852,33 @@ class ClassicPanel {
     }
 
     _refreshTasks() {
-        for (const task of this._tasks)
-            task.destroy();
-        this._tasks = [];
-        this._taskBox.destroy_all_children();
         const windows = this._eligibleWindows();
         const layout = this._taskLayout(windows);
-        for (const window of layout.windows) {
-            const task = new TaskButton(
-                window,
-                () => this._onWindowsChanged(),
-                (source, target, after) => this._reorderTask(source, target, after),
-                layout.taskWidth
-            );
-            this._tasks.push(task);
-            this._taskBox.add_child(task.actor);
+        const desiredWindows = new Set(layout.windows);
+        const tasksByWindow = new Map(this._tasks.map(task => [task.window, task]));
+
+        for (const task of this._tasks) {
+            if (!desiredWindows.has(task.window))
+                task.destroy();
         }
+
+        this._tasks = layout.windows.map(window => {
+            let task = tasksByWindow.get(window);
+            if (!task) {
+                task = new TaskButton(
+                    window,
+                    () => this._onWindowsChanged(),
+                    (source, target, after) => this._reorderTask(source, target, after),
+                    layout.taskWidth
+                );
+                this._taskBox.add_child(task.actor);
+            } else {
+                task.setFixedWidth(layout.taskWidth);
+            }
+            return task;
+        });
+        this._tasks.forEach((task, index) =>
+            this._taskBox.set_child_at_index(task.actor, index));
         this._updateFocus();
     }
 
@@ -979,7 +969,7 @@ class ClassicPanel {
         if (restorable.length > 0) {
             for (const window of restorable)
                 window.unminimize();
-            restorable.at(-1)?.activate(global.get_current_time());
+            Main.activateWindow(restorable.at(-1));
             this._desktopWindows.clear();
             return;
         }
@@ -1034,15 +1024,11 @@ class ClassicPanel {
     }
 }
 
-class ResourcesButton {
-    constructor() {
-        this.actor = new St.Button({
-            name: RESOURCES_BUTTON_NAME,
-            style_class: 'panel-button gnozzard-resources-button',
-            reactive: true,
-            can_focus: true,
-            accessible_name: 'Open Resources',
-        });
+const ResourcesButton = GObject.registerClass(
+class ResourcesButton extends PanelMenu.Button {
+    _init() {
+        super._init(0, 'Open Resources', true);
+        this.add_style_class_name('gnozzard-resources-button');
         const content = new St.BoxLayout({style_class: 'gnozzard-resources-content'});
         content.add_child(new St.Icon({
             icon_name: 'org.openresearchtools.GnozzardResources-symbolic',
@@ -1052,48 +1038,73 @@ class ResourcesButton {
             text: 'Resources',
             y_align: Clutter.ActorAlign.CENTER,
         }));
-        this.actor.set_child(content);
-        this.actor.connect('clicked', () => {
-            const app = Shell.AppSystem.get_default().lookup_app(
-                'org.openresearchtools.GnozzardResources.desktop');
-            if (app)
-                app.activate();
-            else
-                Main.notifyError('Gnozzard', 'Resources is not installed correctly.');
+        const activationButton = new St.Button({
+            style_class: 'gnozzard-resources-activation',
+            accessible_name: 'Open Resources',
+            can_focus: false,
+            reactive: true,
+            button_mask: St.ButtonMask.ONE,
+            child: content,
         });
-        Main.panel._leftBox.insert_child_at_index(this.actor, 0);
+        activationButton.connect('clicked', () => this._activate());
+        this.add_child(activationButton);
     }
 
-    destroy() {
-        if (this.actor?.get_parent())
-            this.actor.destroy();
-        this.actor = null;
+    vfunc_key_release_event(event) {
+        const symbol = event.get_key_symbol();
+        if (symbol === Clutter.KEY_Return || symbol === Clutter.KEY_space) {
+            this._activate();
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
     }
-}
+
+    _activate() {
+        const app = Shell.AppSystem.get_default().lookup_app(
+            'org.openresearchtools.GnozzardResources.desktop');
+        if (app) {
+            app.activate();
+            Main.overview.hide();
+        } else {
+            Main.notifyError('Gnozzard', 'Resources is not installed correctly.');
+        }
+    }
+});
 
 export default class GnozzardExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._signals = new SignalStore();
+        this._watchedWindows = new Set();
+        this._applicationsMenuManager = new PopupMenu.PopupMenuManager(this);
+        this._desktopStarted = false;
         this._previousTopPanelStyle = Main.panel?.get_style() ?? null;
-        Main.panel?.add_style_class_name('gnozzard-top-panel');
+        const activities = Main.panel.statusArea.activities?.container ??
+            Main.panel.statusArea.activities;
+        this._previousActivitiesVisible = activities?.visible ?? true;
         this._panelState = {
             windowOrder: [],
             desktopWindows: new Set(),
         };
         this._panels = [];
-        this._refreshSource = 0;
         this._applyClassicSettings();
-        this._rebuildPanels();
+        if (Main.actionMode === Shell.ActionMode.NONE) {
+            this._signals.connect(Main.layoutManager, 'startup-complete', () =>
+                this._finishStartup());
+        } else {
+            this._finishStartup();
+        }
         Main.wm.addKeybinding(
             'toggle-applications',
             this._settings,
             Meta.KeyBindingFlags.NONE,
-            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+            Shell.ActionMode.NORMAL,
             () => this._primaryPanel()?.toggleApplications()
         );
-        this._signals.connect(global.display, 'window-created', (_display, window) =>
-            this._watchWindow(window));
+        this._signals.connect(global.display, 'window-created', (_display, window) => {
+            this._watchWindow(window);
+            this._refreshPanels();
+        });
         for (const actor of global.get_window_actors())
             this._watchWindow(actor.meta_window);
         this._signals.connect(global.display, 'notify::focus-window', () =>
@@ -1112,10 +1123,34 @@ export default class GnozzardExtension extends Extension {
             this._rebuildPanels());
         this._signals.connect(this._settings, 'changed::capped-task-buttons', () =>
             this._rebuildPanels());
+    }
+
+    _finishStartup() {
+        if (this._desktopStarted)
+            return;
+        Main.overview.hide();
+        if (Main.overview.visible) {
+            this._signals.connect(Main.overview, 'hidden', () => {
+                this._signals.disconnectObject(Main.overview);
+                this._startDesktop();
+            });
+            return;
+        }
+        this._startDesktop();
+    }
+
+    _startDesktop() {
+        if (this._desktopStarted)
+            return;
+        this._desktopStarted = true;
+        Main.panel?.add_style_class_name('gnozzard-top-panel');
+        this._rebuildPanels();
         this._syncResourcesButton();
     }
 
     _rebuildPanels() {
+        if (!this._desktopStarted)
+            return;
         for (const panel of this._panels)
             panel.destroy();
         const primaryIndex = Math.max(0, Main.layoutManager.monitors
@@ -1128,6 +1163,7 @@ export default class GnozzardExtension extends Extension {
                 this._settings,
                 index,
                 this._panelState,
+                this._applicationsMenuManager,
                 () => this._refreshPanels(),
                 source => this._syncPanelOrder(source)
             ));
@@ -1146,20 +1182,15 @@ export default class GnozzardExtension extends Extension {
     }
 
     _watchWindow(window) {
-        if (!window)
+        if (!window || this._watchedWindows.has(window))
             return;
+        this._watchedWindows.add(window);
         this._signals.connect(window, 'notify::skip-taskbar', () =>
-            this._schedulePanelRefresh());
-        this._schedulePanelRefresh();
-    }
-
-    _schedulePanelRefresh() {
-        if (this._refreshSource)
-            return;
-        this._refreshSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-            this._refreshSource = 0;
+            this._refreshPanels());
+        this._signals.connect(window, 'unmanaged', () => {
+            this._signals.disconnectObject(window);
+            this._watchedWindows.delete(window);
             this._refreshPanels();
-            return GLib.SOURCE_REMOVE;
         });
     }
 
@@ -1278,15 +1309,23 @@ export default class GnozzardExtension extends Extension {
     }
 
     _syncResourcesButton() {
+        if (!this._desktopStarted)
+            return;
         this._resourcesButton?.destroy();
         this._resourcesButton = null;
-        removeResourcesButtons();
         const activities = Main.panel.statusArea.activities?.container ??
             Main.panel.statusArea.activities;
         if (activities)
             activities.visible = !this._settings.get_boolean('show-resources-button');
-        if (this._settings.get_boolean('show-resources-button'))
+        if (this._settings.get_boolean('show-resources-button')) {
             this._resourcesButton = new ResourcesButton();
+            Main.panel.addToStatusArea(
+                RESOURCES_BUTTON_ROLE,
+                this._resourcesButton,
+                0,
+                'left'
+            );
+        }
     }
 
     _restoreSettings() {
@@ -1315,13 +1354,13 @@ export default class GnozzardExtension extends Extension {
 
     disable() {
         Main.wm.removeKeybinding('toggle-applications');
-        if (this._refreshSource)
-            GLib.source_remove(this._refreshSource);
-        this._refreshSource = 0;
         this._signals?.clear();
+        this._watchedWindows?.clear();
+        this._watchedWindows = null;
         for (const panel of this._panels ?? [])
             panel.destroy();
         this._panels = [];
+        this._applicationsMenuManager = null;
         this._panelState = null;
         if (Main.panel) {
             Main.panel.remove_style_class_name('gnozzard-top-panel');
@@ -1330,11 +1369,12 @@ export default class GnozzardExtension extends Extension {
         this._previousTopPanelStyle = null;
         this._resourcesButton?.destroy();
         this._resourcesButton = null;
-        removeResourcesButtons();
         const activities = Main.panel.statusArea.activities?.container ??
             Main.panel.statusArea.activities;
         if (activities)
-            activities.visible = true;
+            activities.visible = this._previousActivitiesVisible ?? true;
+        this._previousActivitiesVisible = null;
+        this._desktopStarted = false;
         this._restoreSettings();
         this._settings = null;
     }

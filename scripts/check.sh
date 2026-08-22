@@ -12,7 +12,7 @@ PYTHONPYCACHEPREFIX="$check_tmp/pycache" \
     python3 -m py_compile helper/gnozzard helper/gnozzard-deb-installer \
         integrations/nautilus/gnozzard.py data/gnozzard-settings
 desktop-file-validate data/gnozzard-appimage-launcher.desktop \
-    data/com.openresearchtools.GnozzardSettings.desktop data/gnozzard-session.desktop
+    data/com.openresearchtools.GnozzardSettings.desktop
 glib-compile-schemas --strict --dry-run extension/gnozzard@openresearchtools/schemas
 
 # gjs parses the complete module before resolving Shell-only runtime globals.

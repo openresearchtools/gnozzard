@@ -1,0 +1,1 @@
+rm_conffile /etc/xdg/autostart/gnozzard-session.desktop 0.1.8~

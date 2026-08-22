@@ -67,6 +67,19 @@
   spacing: 8px;
 }
 
+.gnozzard-applications-popup {
+  -arrow-rise: 0;
+  -boxpointer-gap: 0;
+}
+
+.gnozzard-applications-popup .popup-menu-content {
+  background-color: transparent;
+  border: none;
+  border-radius: 12px 12px 0 0;
+  box-shadow: none;
+  padding: 0;
+}
+
 .gnozzard-app-search {
   margin: 0;
 }
@@ -130,6 +143,13 @@
 
 .gnozzard-resources-button {
   padding: 0 9px;
+}
+
+.gnozzard-resources-activation {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 .gnozzard-resources-content {

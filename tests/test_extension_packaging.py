@@ -1,7 +1,4 @@
-import os
 from pathlib import Path
-import subprocess
-import tempfile
 import unittest
 
 
@@ -152,7 +149,7 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn('DESKTOP_UUID = "ding@rastersoft.com"', settings_app)
         self.assertIn('TRAY_UUID = "ubuntu-appindicators@ubuntu.com"', settings_app)
         self.assertIn("Turn off Gnozzard?", settings_app)
-        self.assertIn("session-initialized", settings_app)
+        self.assertNotIn("session-initialized", settings_app)
         self.assertIn("self._refresh_failures = 0", settings_app)
         self.assertIn("self._refresh_failures += 1", settings_app)
         self.assertIn(
@@ -260,6 +257,48 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn("this._dirty = true", close_method)
         self.assertIn("GLib.source_remove(this._searchTimeout)", close_method)
 
+    def test_applications_menu_uses_one_native_popup_owner(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        applications_menu = source.split("class ApplicationsMenu", 1)[1].split(
+            "class TaskContextMenu", 1
+        )[0]
+        self.assertIn("new PopupMenu.PopupMenu(", applications_menu)
+        self.assertIn("this.menu.setSourceAlignment(0)", applications_menu)
+        self.assertIn("manager.addMenu(this.menu)", applications_menu)
+        self.assertIn("this.menu.box.add_child(this.actor)", applications_menu)
+        self.assertNotIn("Main.layoutManager.addChrome", applications_menu)
+        self.assertNotIn("Main.pushModal", applications_menu)
+        self.assertNotIn("_overlay", applications_menu)
+        self.assertNotIn("_dismissArea", applications_menu)
+
+    def test_single_click_uses_shell_activation_paths(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        application_row = source.split("class ApplicationRow", 1)[1].split(
+            "class ApplicationsMenu", 1
+        )[0]
+        task_button = source.split("class TaskButton", 1)[1].split(
+            "class ClassicPanel", 1
+        )[0]
+        self.assertIn("app.activate();", application_row)
+        self.assertIn("Main.overview.hide();", application_row)
+        self.assertNotIn("app.open_new_window", application_row)
+        self.assertIn("Main.activateWindow(this.window);", task_button)
+        self.assertNotIn("this.window.unminimize()", task_button)
+        self.assertNotIn("this.window.activate(", task_button)
+        self.assertNotIn("_iconRetry", task_button)
+        self.assertIn("'tracked-windows-changed'", source)
+        self.assertIn("this._updatePanelIcons()", source)
+        tracker_handler = source.split("'tracked-windows-changed'", 1)[1].split(
+            "this._signals.connect", 1
+        )[0]
+        self.assertNotIn("this._refreshPanels()", tracker_handler)
+        self.assertIn("tasksByWindow.get(window)", source)
+        self.assertNotIn("this._taskBox.destroy_all_children()", source)
+
     def test_github_artifacts_build_amd64_and_arm64_packages(self):
         workflow = (ROOT / ".github/workflows/build-deb.yml").read_text()
         self.assertIn("architecture: amd64", workflow)
@@ -318,20 +357,25 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn("Files: third_party/resources/*", copyright_file)
         self.assertIn("License: GPL-3+", copyright_file)
 
-    def test_resources_button_sync_removes_stale_gnome_shell_actors(self):
+    def test_resources_button_uses_public_panel_status_api(self):
         source = (
             ROOT / "extension/gnozzard@openresearchtools/extension.js"
         ).read_text()
         self.assertIn(
-            "const RESOURCES_BUTTON_NAME = 'gnozzardResourcesButton'", source
+            "const RESOURCES_BUTTON_ROLE = 'gnozzardResourcesButton'", source
         )
-        self.assertIn("function removeResourcesButtons()", source)
-        self.assertIn("child.has_style_class_name?.('gnozzard-resources-button')", source)
-        self.assertIn("name: RESOURCES_BUTTON_NAME", source)
+        self.assertIn("class ResourcesButton extends PanelMenu.Button", source)
+        self.assertIn("style_class: 'gnozzard-resources-activation'", source)
+        self.assertIn("activationButton.connect('clicked'", source)
+        self.assertIn("can_focus: false", source)
+        self.assertIn("vfunc_key_release_event(event)", source)
+        self.assertIn("Main.panel.addToStatusArea(", source)
+        self.assertNotIn("Main.panel._leftBox", source)
+        self.assertNotIn("removeResourcesButtons", source)
         sync = source.split("_syncResourcesButton() {", 1)[1].split(
             "_restoreSettings()", 1
         )[0]
-        self.assertIn("removeResourcesButtons();", sync)
+        self.assertIn("this._resourcesButton?.destroy();", sync)
 
     def test_paginated_reorder_and_show_desktop_use_all_windows(self):
         source = (
@@ -341,61 +385,25 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn("const windows = this._eligibleWindows();", source)
         self.assertIn("for (const window of windows)", source)
 
-    def test_session_bootstrap_enables_once_and_preserves_later_choices(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            fake_bin = root / "bin"
-            fake_bin.mkdir()
-            log = root / "commands.log"
-            for command in ("gnome-extensions", "xdg-mime"):
-                executable = fake_bin / command
-                executable.write_text(
-                    "#!/bin/sh\n"
-                    f"printf '%s\\n' \"{command} $*\" >> \"$GNOZZARD_TEST_LOG\"\n"
-                    "exit 0\n"
-                )
-                executable.chmod(0o755)
-
-            environment = os.environ.copy()
-            environment.update({
-                "HOME": str(root / "home"),
-                "XDG_STATE_HOME": str(root / "state"),
-                "GNOZZARD_TEST_LOG": str(log),
-                "PATH": f"{fake_bin}:/usr/bin:/bin",
-            })
-            script = ROOT / "data/gnozzard-session"
-            subprocess.run([str(script)], env=environment, check=True)
-            first_run = log.read_text()
-            self.assertIn(
-                "gnome-extensions enable gnozzard@openresearchtools", first_run
-            )
-            self.assertIn(
-                "gnome-extensions enable ubuntu-appindicators@ubuntu.com", first_run
-            )
-            self.assertIn(
-                "gnome-extensions disable ubuntu-dock@ubuntu.com", first_run
-            )
-            self.assertTrue(
-                (root / "state/gnozzard/session-initialized").is_file()
-            )
-            self.assertTrue(
-                (root / "state/gnozzard/ubuntu-dock-disabled").is_file()
-            )
-
-            subprocess.run([str(script)], env=environment, check=True)
-            second_run = log.read_text()
-            self.assertEqual(
-                second_run.count(
-                    "gnome-extensions enable gnozzard@openresearchtools"
-                ),
-                1,
-            )
-            self.assertEqual(
-                second_run.count(
-                    "gnome-extensions disable ubuntu-dock@ubuntu.com"
-                ),
-                1,
-            )
+    def test_extension_defaults_are_declarative_before_shell_start(self):
+        defaults = (ROOT / "data/90_gnozzard.gschema.override").read_text()
+        install = (ROOT / "debian/gnozzard.install").read_text()
+        self.assertIn("[org.gnome.shell]", defaults)
+        self.assertIn("'gnozzard@openresearchtools'", defaults)
+        self.assertIn("'ding@rastersoft.com'", defaults)
+        self.assertIn("'ubuntu-appindicators@ubuntu.com'", defaults)
+        self.assertIn("disabled-extensions=['ubuntu-dock@ubuntu.com']", defaults)
+        self.assertIn(
+            "data/90_gnozzard.gschema.override usr/share/glib-2.0/schemas/",
+            install,
+        )
+        self.assertFalse((ROOT / "data/gnozzard-session").exists())
+        self.assertFalse((ROOT / "data/gnozzard-session.desktop").exists())
+        maintscript = (ROOT / "debian/gnozzard.maintscript").read_text()
+        self.assertIn(
+            "rm_conffile /etc/xdg/autostart/gnozzard-session.desktop 0.1.8~",
+            maintscript,
+        )
 
     def test_ubuntu_24_ding_backing_window_is_not_a_task(self):
         source = (
@@ -403,8 +411,19 @@ class ExtensionPackagingTests(unittest.TestCase):
         ).read_text()
         self.assertIn("startsWith('Desktop Icons ')", source)
         self.assertIn("'notify::skip-taskbar'", source)
-        self.assertIn("this._schedulePanelRefresh()", source)
-        self.assertIn("GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250", source)
+        self.assertIn("this._watchedWindows.has(window)", source)
+        self.assertIn("this._watchedWindows.delete(window)", source)
+        self.assertNotIn("_schedulePanelRefresh", source)
+        self.assertNotIn("GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250", source)
+
+    def test_custom_chrome_waits_until_the_startup_overview_is_hidden(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        self.assertIn("Main.actionMode === Shell.ActionMode.NONE", source)
+        self.assertIn("Main.overview, 'hidden'", source)
+        self.assertIn("_startDesktop()", source)
+        self.assertIn("if (!this._desktopStarted)", source)
 
 
 if __name__ == "__main__":
