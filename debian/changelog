@@ -1,3 +1,9 @@
+gnozzard (0.1.8) unstable; urgency=medium
+
+  * Automated release version bump.
+
+ -- Open Research Tools <openresearchtools@users.noreply.github.com>  Sat, 22 Aug 2026 12:14:30 +0000
+
 gnozzard (0.1.7) unstable; urgency=medium
 
   * Split the Resources fork into the gnozzard-resources binary package.
