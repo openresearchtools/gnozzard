@@ -95,19 +95,10 @@ def validate_desktop_file(argument: str) -> tuple[Path, str]:
         raise UserInputError("file has no [Desktop Entry] group")
     if not re.search(r"(?m)^Type=Application\s*$", content):
         raise UserInputError("only application desktop launchers are supported")
-    try:
-        checked = subprocess.run(
-            ["desktop-file-validate", str(path)],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (FileNotFoundError, subprocess.SubprocessError) as error:
-        raise UserInputError(f"cannot validate desktop launcher: {error}") from error
-    if checked.returncode != 0:
-        detail = checked.stderr.strip().splitlines()[0] if checked.stderr.strip() else "invalid file"
-        raise UserInputError(f"desktop launcher validation failed: {detail}")
+    if desktop_field(content, "Exec") is None and desktop_field(
+        content, "DBusActivatable"
+    ) != "true":
+        raise UserInputError("desktop launcher has neither Exec nor D-Bus activation")
     return path, content
 
 
@@ -374,53 +365,39 @@ def desktop_launcher_path(path: Path) -> Path:
 
 
 def _replace_desktop_field(content: str, key: str, value: str) -> str:
+    header = re.search(r"(?m)^\[Desktop Entry\]\s*$", content)
+    if header is None:
+        raise UserInputError("file has no [Desktop Entry] group")
+    next_header = re.search(r"(?m)^\[", content[header.end() :])
+    group_end = (
+        header.end() + next_header.start()
+        if next_header is not None
+        else len(content)
+    )
+    group = content[header.end() : group_end]
     updated, count = re.subn(
         rf"(?m)^{re.escape(key)}=.*$",
         lambda _match: f"{key}={value}",
-        content,
+        group,
         count=1,
     )
     if count:
-        return updated
-    separator = "" if content.endswith("\n") else "\n"
-    return f"{content}{separator}{key}={value}\n"
+        return f"{content[:header.end()]}{updated}{content[group_end:]}"
+    separator = "" if group.endswith("\n") else "\n"
+    updated = f"{group}{separator}{key}={value}\n"
+    return f"{content[:header.end()]}{updated}{content[group_end:]}"
 
 
-def _localize_desktop_exec(path: Path, content: str) -> str:
-    exec_value = desktop_field(content, "Exec")
-    if not exec_value:
-        raise UserInputError("desktop launcher has no Exec field")
-    match = re.match(r'^(\s*)("(?:\\.|[^"\\])*"|\S+)(.*)$', exec_value)
-    if not match:
-        raise UserInputError("desktop launcher has an invalid Exec field")
-    raw_command = match.group(2)
-    if raw_command.startswith('"'):
-        command = raw_command[1:-1].replace('\\"', '"').replace('\\\\', '\\')
-    else:
-        command = raw_command.replace('\\ ', ' ')
-    if "/" not in command:
-        sibling = path.parent / command
-        try:
-            info = sibling.lstat()
-        except OSError:
-            info = None
-        if info is not None and stat.S_ISREG(info.st_mode) and not stat.S_ISLNK(info.st_mode):
-            command = str(sibling)
-            content = _replace_desktop_field(
-                content,
-                "Exec",
-                f"{match.group(1)}{desktop_exec_quote(command)}{match.group(3)}",
-            )
-
+def _localize_desktop_icon(path: Path, content: str) -> str:
     icon_value = desktop_field(content, "Icon")
     if icon_value and not Path(icon_value).is_absolute():
         relative_icon = Path(icon_value)
-        if relative_icon.suffix.lower() in {".svg", ".png", ".xpm"}:
+        if relative_icon.suffix.lower() in {".svg", ".png", ".xpm", ".ico"}:
             candidates = [path.parent / relative_icon]
         else:
             candidates = list(
                 path.parent / f"{icon_value}{extension}"
-                for extension in (".svg", ".png", ".xpm")
+                for extension in (".svg", ".png", ".xpm", ".ico")
             )
         for sibling_icon in candidates:
             if sibling_icon.is_file() and not sibling_icon.is_symlink():
@@ -428,17 +405,18 @@ def _localize_desktop_exec(path: Path, content: str) -> str:
                     content, "Icon", str(sibling_icon.resolve())
                 )
                 break
-
-    try_exec = desktop_field(content, "TryExec")
-    if try_exec and "/" not in try_exec:
-        sibling_try_exec = path.parent / try_exec
-        if sibling_try_exec.is_file() and not sibling_try_exec.is_symlink():
-            content = _replace_desktop_field(content, "TryExec", str(sibling_try_exec))
     return content
 
 
 def prepared_desktop_content(path: Path, content: str) -> str:
-    prepared = _localize_desktop_exec(path, content)
+    prepared = _localize_desktop_icon(path, content)
+    prepared = _replace_desktop_field(
+        prepared,
+        "Exec",
+        f"/usr/libexec/gnozzard desktop-launch {desktop_exec_quote(str(path))} %U",
+    )
+    prepared = _replace_desktop_field(prepared, "TryExec", "/usr/libexec/gnozzard")
+    prepared = _replace_desktop_field(prepared, "DBusActivatable", "false")
     prepared = _replace_desktop_field(prepared, "X-Gnozzard-Managed", "true")
     return _replace_desktop_field(prepared, "X-Gnozzard-Desktop-Source", str(path))
 
@@ -705,25 +683,40 @@ def command_extract_and_run_no_sandbox(arguments: argparse.Namespace) -> None:
     extract_and_run(path, request_no_sandbox=True)
 
 
-def command_desktop_launch(arguments: argparse.Namespace) -> None:
-    path, content = validate_desktop_file(arguments.path)
-    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir()))
-    runtime.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix="gnozzard-launcher-", suffix=".desktop", dir=runtime
-    )
-    os.close(descriptor)
-    temporary = Path(temporary_name)
+def launch_desktop_file(path: Path, targets: list[str]) -> None:
+    """Launch from the source file so desktop field codes retain its location."""
     try:
-        atomic_write(temporary, prepared_desktop_content(path, content), mode=0o755)
-        mark_desktop_trusted(temporary)
-        result = subprocess.run(["gio", "launch", str(temporary)], check=False, timeout=15)
-        if result.returncode != 0:
+        import gi
+
+        gi.require_version("Gio", "2.0")
+        from gi.repository import Gio
+
+        try:
+            gi.require_version("GioUnix", "2.0")
+            from gi.repository import GioUnix
+
+            desktop_app_info = GioUnix.DesktopAppInfo
+        except (ImportError, ValueError):
+            desktop_app_info = Gio.DesktopAppInfo
+    except (AttributeError, ImportError, ValueError) as error:
+        raise UserInputError(f"desktop launcher support is unavailable: {error}") from error
+
+    try:
+        application = desktop_app_info.new_from_filename(str(path))
+        if application is None:
+            raise UserInputError("desktop launcher could not be loaded")
+        files = [Gio.File.new_for_commandline_arg(target) for target in targets]
+        if not application.launch(files, None):
             raise UserInputError("desktop launcher did not start successfully")
-    except (FileNotFoundError, subprocess.SubprocessError) as error:
+    except UserInputError:
+        raise
+    except Exception as error:
         raise UserInputError(f"cannot launch desktop file: {error}") from error
-    finally:
-        temporary.unlink(missing_ok=True)
+
+
+def command_desktop_launch(arguments: argparse.Namespace) -> None:
+    path, _content = validate_desktop_file(arguments.path)
+    launch_desktop_file(path, arguments.targets)
 
 
 def command_desktop_register(arguments: argparse.Namespace) -> None:
@@ -892,6 +885,7 @@ def parser() -> argparse.ArgumentParser:
         "desktop-launch", help="validate and run a local desktop launcher"
     )
     desktop_launch.add_argument("path")
+    desktop_launch.add_argument("targets", nargs="*")
     desktop_launch.set_defaults(function=command_desktop_launch)
 
     desktop_register = subparsers.add_parser(

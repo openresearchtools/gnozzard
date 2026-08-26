@@ -252,7 +252,7 @@ class HelperTests(unittest.TestCase):
                     entry = helper.register_appimage(path)
             self.assertIn(f"Icon={icon}\n", entry.read_text())
 
-    def test_desktop_registration_localizes_sibling_executable_and_icon(self):
+    def test_desktop_registration_proxies_original_launcher_and_localizes_icon(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             launcher = root / "blender.desktop"
@@ -271,12 +271,18 @@ class HelperTests(unittest.TestCase):
                     path, content = helper.validate_desktop_file(str(launcher))
                     entry = helper.register_desktop_file(path, content)
             installed = entry.read_text()
-            self.assertIn(f'Exec="{executable}" %f\n', installed)
+            self.assertIn(
+                f'Exec=/usr/libexec/gnozzard desktop-launch "{launcher}" %U\n',
+                installed,
+            )
+            self.assertIn("TryExec=/usr/libexec/gnozzard\n", installed)
+            self.assertIn("DBusActivatable=false\n", installed)
             self.assertIn(f"Icon={icon}\n", installed)
             self.assertIn(f"X-Gnozzard-Desktop-Source={launcher}\n", installed)
             self.assertTrue(launcher.exists())
+            self.assertIn("Exec=blender %f\n", launcher.read_text())
 
-    def test_desktop_launch_uses_validated_temporary_launcher(self):
+    def test_desktop_launch_runs_original_launcher_and_forwards_targets(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             launcher = root / "Tool.desktop"
@@ -284,14 +290,47 @@ class HelperTests(unittest.TestCase):
                 "[Desktop Entry]\nType=Application\nName=Tool\n"
                 "Exec=/usr/bin/true\nTerminal=false\n"
             )
-            arguments = type("Arguments", (), {"path": str(launcher)})()
-            completed = helper.subprocess.CompletedProcess([], 0, "", "")
-            with mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": str(root / "runtime")}):
-                with mock.patch.object(helper.subprocess, "run", return_value=completed) as run:
-                    helper.command_desktop_launch(arguments)
-            self.assertTrue(
-                any(call.args[0][:2] == ["gio", "launch"] for call in run.call_args_list)
+            arguments = type(
+                "Arguments",
+                (),
+                {"path": str(launcher), "targets": ["file:///tmp/paper.pdf"]},
+            )()
+            with mock.patch.object(helper, "launch_desktop_file") as launch:
+                helper.command_desktop_launch(arguments)
+            launch.assert_called_once_with(
+                launcher,
+                ["file:///tmp/paper.pdf"],
             )
+
+    def test_zotero_style_launcher_is_not_rejected_by_linter_errors(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            launcher = root / "zotero.desktop"
+            launcher.write_text(
+                "[Desktop Entry]\nType=Application\nName=Zotero\n"
+                'Exec=bash -c "$(dirname $(realpath $(echo %k)))/zotero -url %U"\n'
+                "Icon=zotero.ico\nTerminal=false\nCategories=Office;\n"
+            )
+            icon = root / "zotero.ico"
+            icon.write_bytes(b"ICO")
+            with mock.patch.object(helper.subprocess, "run") as run:
+                path, content = helper.validate_desktop_file(str(launcher))
+            self.assertEqual(path, launcher)
+            self.assertIn("$(dirname", content)
+            run.assert_not_called()
+            managed = helper.prepared_desktop_content(path, content)
+            self.assertIn(f"Icon={icon}\n", managed)
+
+    def test_managed_fields_stay_in_desktop_entry_group(self):
+        source = (
+            "[Desktop Entry]\nType=Application\nName=Tool\nExec=/usr/bin/true\n"
+            "Actions=Inspect;\n\n[Desktop Action Inspect]\nName=Inspect\n"
+            "Exec=/usr/bin/true --inspect\n"
+        )
+        updated = helper._replace_desktop_field(source, "TryExec", "/usr/bin/true")
+        main, action = updated.split("[Desktop Action Inspect]", 1)
+        self.assertIn("TryExec=/usr/bin/true\n", main)
+        self.assertNotIn("TryExec=", action)
 
     def test_desktop_registration_localizes_relative_png_icon(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -1,3 +1,11 @@
+gnozzard (0.1.9) unstable; urgency=medium
+
+  * Run local desktop launchers through GLib's native desktop-app API.
+  * Preserve source-relative field codes for Applications and Desktop entries.
+  * Accept valid launchers that desktop-file-validate rejects.
+
+ -- Open Research Tools <openresearchtools@users.noreply.github.com>  Wed, 26 Aug 2026 22:30:31 +0100
+
 gnozzard (0.1.8) unstable; urgency=medium
 
   * Automated release version bump.
