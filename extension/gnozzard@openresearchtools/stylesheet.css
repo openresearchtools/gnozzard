@@ -1,11 +1,17 @@
 #panel.gnozzard-top-panel {
   background-color: #282828;
+  font-weight: normal;
+}
+
+#panel.gnozzard-top-panel .panel-button {
+  font-weight: normal;
 }
 
 .gnozzard-panel {
   spacing: 0;
   padding: 0;
   border: none;
+  font-weight: normal;
 }
 
 .gnozzard-applications-button,
@@ -141,8 +147,42 @@
   padding: 0 5px 3px 5px;
 }
 
+.gnozzard-workspaces-button {
+  padding: 0;
+}
+
+.gnozzard-workspaces-content {
+  spacing: 0;
+}
+
+.gnozzard-workspace-button,
+.gnozzard-workspace-add-button {
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: white;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.gnozzard-workspace-entry-content {
+  min-height: 32px;
+}
+
+.gnozzard-workspace-indicator {
+  background-color: #ff7139;
+  height: 3px;
+}
+
+.gnozzard-workspace-add-button {
+  font-weight: bold;
+  min-width: 30px;
+  padding: 0 8px;
+}
+
 .gnozzard-resources-button {
-  padding: 0 9px;
+  padding: 0 8px;
 }
 
 .gnozzard-resources-activation {
@@ -150,10 +190,6 @@
   border: none;
   box-shadow: none;
   padding: 0;
-}
-
-.gnozzard-resources-content {
-  spacing: 6px;
 }
 
 .gnozzard-destructive-text {

@@ -22,9 +22,22 @@ const CAPPED_TASK_BUTTON_WIDTH = 260;
 const MIN_TASK_BUTTON_WIDTH = 96;
 const TASK_PAGE_STEP = 5;
 const TASK_PAGE_BUTTON_WIDTH = 28;
+const WORKSPACES_BUTTON_ROLE = 'gnozzardWorkspacesButton';
 const RESOURCES_BUTTON_ROLE = 'gnozzardResourcesButton';
 function stopEvent() {
     return Clutter.EVENT_STOP;
+}
+
+function workspaceLabel(index) {
+    return index === 0 ? 'Desktop' : `Workplace ${index + 1}`;
+}
+
+function launchApplication(app) {
+    if (app.can_open_new_window()) {
+        app.open_new_window(global.workspace_manager.get_active_workspace_index());
+        return;
+    }
+    app.activate();
 }
 
 function launchGraphicalCommand(commandArguments, name) {
@@ -142,7 +155,7 @@ class AppContextMenu {
         const launch = new PopupMenu.PopupMenuItem('Open');
         launch.connect('activate', () => {
             this._refresh(true);
-            this._app.activate();
+            launchApplication(this._app);
             Main.overview.hide();
         });
         this.menu.addMenuItem(launch);
@@ -338,7 +351,7 @@ class ApplicationRow {
             return Clutter.EVENT_PROPAGATE;
         });
         this.actor.connect('clicked', () => {
-            app.activate();
+            launchApplication(app);
             Main.overview.hide();
             refresh(true);
         });
@@ -574,10 +587,33 @@ class TaskContextMenu {
         this.menu.actor.hide();
         this._manager = new PopupMenu.PopupMenuManager(source);
         this._manager.addMenu(this.menu);
-        this._build();
     }
 
     _build() {
+        this.menu.removeAll();
+        const workspaceManager = global.workspace_manager;
+        const current = this._window.is_on_all_workspaces()
+            ? null
+            : this._window.get_workspace();
+        const move = new PopupMenu.PopupSubMenuMenuItem('Move to Workplace');
+        for (let index = 0; index < workspaceManager.get_n_workspaces(); index++) {
+            const workspace = workspaceManager.get_workspace_by_index(index);
+            const item = new PopupMenu.PopupMenuItem(workspaceLabel(index));
+            item.setSensitive(workspace !== current);
+            item.connect('activate', () => this._moveTo(workspace));
+            move.menu.addMenuItem(item);
+        }
+        move.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        const create = new PopupMenu.PopupMenuItem('New Workplace');
+        create.connect('activate', () => {
+            const workspace = workspaceManager.append_new_workspace(
+                false, global.get_current_time());
+            this._moveTo(workspace);
+        });
+        move.menu.addMenuItem(create);
+        this.menu.addMenuItem(move);
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
         const close = new PopupMenu.PopupMenuItem('Close');
         close.setSensitive(this._window.can_close());
         close.connect('activate', () => {
@@ -592,7 +628,16 @@ class TaskContextMenu {
         this.menu.addMenuItem(forceKill);
     }
 
+    _moveTo(workspace) {
+        if (!workspace)
+            return;
+        if (this._window.is_on_all_workspaces())
+            this._window.unstick();
+        this._window.change_workspace(workspace);
+    }
+
     open() {
+        this._build();
         this.menu.open(true);
     }
 
@@ -636,11 +681,14 @@ class TaskButton {
         this.actor.set_child(this._content);
         this._context = null;
         this.actor.connect('button-press-event', (_actor, event) => {
-            if (event.get_button() !== 3)
+            if (event.get_button() !== Clutter.BUTTON_SECONDARY)
                 return Clutter.EVENT_PROPAGATE;
-            this._context ??= new TaskContextMenu(this.actor, this.window);
-            this._context.open();
+            this._openContext();
             return Clutter.EVENT_STOP;
+        });
+        this.actor.connect('popup-menu', () => {
+            this._openContext();
+            return true;
         });
         this.actor.connect('clicked', () => this._activateOrMinimise());
         this._draggable = DND.makeDraggable(this.actor, {
@@ -657,6 +705,11 @@ class TaskButton {
                 onChanged();
         });
         this.updateState();
+    }
+
+    _openContext() {
+        this._context ??= new TaskContextMenu(this.actor, this.window);
+        this._context.open();
     }
 
     getDragActor() {
@@ -707,7 +760,11 @@ class TaskButton {
 
     _activateOrMinimise() {
         const focused = global.display.focus_window === this.window;
-        if (focused && !this.window.minimized) {
+        const workspace = this.window.get_workspace();
+        const activeWorkspace = global.workspace_manager.get_active_workspace();
+        const onActiveWorkspace = this.window.is_on_all_workspaces() ||
+            workspace === activeWorkspace;
+        if (focused && onActiveWorkspace && !this.window.minimized) {
             this.window.minimize();
             return;
         }
@@ -831,14 +888,21 @@ class ClassicPanel {
         Main.panel?.set_style(`background-color: ${colour};`);
     }
 
-    _eligibleWindows() {
-        const active = global.workspace_manager.get_active_workspace();
-        const eligible = global.display.get_tab_list(Meta.TabList.NORMAL_ALL, active)
+    _windowList(allWorkspaces) {
+        const workspace = allWorkspaces
+            ? null
+            : global.workspace_manager.get_active_workspace();
+        return global.display.get_tab_list(Meta.TabList.NORMAL_ALL, workspace)
             .filter(window => !window.skip_taskbar &&
                 window.get_window_type() !== Meta.WindowType.DESKTOP &&
                 !(window.get_title() ?? '').startsWith('@!') &&
                 !(window.get_title() ?? '').startsWith('Desktop Icons '))
             .sort((a, b) => a.get_stable_sequence() - b.get_stable_sequence());
+    }
+
+    _eligibleWindows() {
+        const eligible = this._windowList(
+            this._settings.get_boolean('taskbar-all-workspaces'));
         const available = new Set(eligible);
         const ordered = this._sharedState.windowOrder
             .filter(window => available.has(window));
@@ -963,7 +1027,7 @@ class ClassicPanel {
     }
 
     _toggleDesktop() {
-        const windows = this._eligibleWindows();
+        const windows = this._windowList(false);
         const restorable = [...this._desktopWindows].filter(window =>
             windows.includes(window) && window.minimized);
         if (restorable.length > 0) {
@@ -1024,27 +1088,189 @@ class ClassicPanel {
     }
 }
 
+class WorkspaceContextMenu {
+    constructor(source, closeable, onClose) {
+        this.menu = new PopupMenu.PopupMenu(source, 0.5, St.Side.TOP);
+        Main.uiGroup.add_child(this.menu.actor);
+        this.menu.actor.hide();
+        this._manager = new PopupMenu.PopupMenuManager(source);
+        this._manager.addMenu(this.menu);
+        const close = new PopupMenu.PopupMenuItem('Close Workplace');
+        close.setSensitive(closeable);
+        close.connect('activate', onClose);
+        this.menu.addMenuItem(close);
+    }
+
+    open() {
+        this.menu.open(true);
+    }
+
+    destroy() {
+        this.menu.destroy();
+        this._manager = null;
+    }
+}
+
+const WorkspacesButton = GObject.registerClass(
+class WorkspacesButton extends PanelMenu.Button {
+    _init() {
+        super._init(0, 'Workplaces', true);
+        this.add_style_class_name('gnozzard-workspaces-button');
+        this._signals = new SignalStore();
+        this._entries = [];
+        this._workspaceManager = global.workspace_manager;
+        this._content = new St.BoxLayout({style_class: 'gnozzard-workspaces-content'});
+        this._addButton = new St.Button({
+            style_class: 'gnozzard-workspace-add-button',
+            label: '+',
+            accessible_name: 'Add Workplace',
+            can_focus: true,
+            reactive: true,
+            button_mask: St.ButtonMask.ONE,
+        });
+        this._addButton.connect('clicked', () => this._addWorkspace());
+        this._content.add_child(this._addButton);
+        this.add_child(this._content);
+        this._signals.connect(this._workspaceManager, 'notify::n-workspaces', () =>
+            this._sync());
+        this._signals.connect(this._workspaceManager, 'workspace-switched', () =>
+            this._syncActive());
+        this._sync();
+    }
+
+    _createEntry() {
+        const actor = new St.Button({
+            style_class: 'gnozzard-workspace-button',
+            can_focus: true,
+            reactive: true,
+            button_mask: St.ButtonMask.ONE,
+        });
+        const label = new St.Label({
+            y_align: Clutter.ActorAlign.CENTER,
+            y_expand: true,
+        });
+        const indicator = new St.Widget({
+            style_class: 'gnozzard-workspace-indicator',
+            x_expand: true,
+        });
+        const content = new St.BoxLayout({
+            style_class: 'gnozzard-workspace-entry-content',
+            vertical: true,
+            y_expand: true,
+        });
+        content.add_child(label);
+        content.add_child(indicator);
+        actor.set_child(content);
+        const entry = {
+            workspace: null,
+            context: null,
+            actor,
+            label,
+            indicator,
+        };
+        entry.actor.connect('clicked', () =>
+            entry.workspace?.activate(global.get_current_time()));
+        entry.actor.connect('button-press-event', (_actor, event) => {
+            if (event.get_button() !== Clutter.BUTTON_SECONDARY)
+                return Clutter.EVENT_PROPAGATE;
+            this._openContext(entry);
+            return Clutter.EVENT_STOP;
+        });
+        entry.actor.connect('popup-menu', () => {
+            this._openContext(entry);
+            return true;
+        });
+        this._content.insert_child_at_index(entry.actor, this._entries.length);
+        this._entries.push(entry);
+    }
+
+    _openContext(entry) {
+        entry.context?.destroy();
+        const main = this._workspaceManager.get_workspace_by_index(0);
+        entry.context = new WorkspaceContextMenu(
+            entry.actor,
+            entry.workspace !== main,
+            () => this._closeWorkspace(entry.workspace)
+        );
+        entry.context.open();
+    }
+
+    _sync() {
+        const count = this._workspaceManager.get_n_workspaces();
+        while (this._entries.length < count)
+            this._createEntry();
+        while (this._entries.length > count) {
+            const entry = this._entries.pop();
+            entry.context?.destroy();
+            entry.actor.destroy();
+        }
+        for (let index = 0; index < count; index++) {
+            const entry = this._entries[index];
+            entry.workspace = this._workspaceManager.get_workspace_by_index(index);
+            const label = workspaceLabel(index);
+            entry.label.set_text(label);
+            entry.actor.accessible_name = label;
+        }
+        this._syncActive();
+    }
+
+    _syncActive() {
+        const activeIndex = this._workspaceManager.get_active_workspace_index();
+        for (let index = 0; index < this._entries.length; index++) {
+            const entry = this._entries[index];
+            const active = index === activeIndex;
+            entry.indicator.opacity = active ? 255 : 0;
+            if (active)
+                entry.actor.add_style_class_name('active');
+            else
+                entry.actor.remove_style_class_name('active');
+        }
+    }
+
+    _addWorkspace() {
+        this._workspaceManager.append_new_workspace(true, global.get_current_time());
+    }
+
+    _closeWorkspace(workspace) {
+        const main = this._workspaceManager.get_workspace_by_index(0);
+        if (!workspace || !main || workspace === main)
+            return;
+        const timestamp = global.get_current_time();
+        for (const window of workspace.list_windows()) {
+            if (!window.is_on_all_workspaces())
+                window.change_workspace(main);
+        }
+        if (this._workspaceManager.get_active_workspace() === workspace)
+            main.activate(timestamp);
+        this._workspaceManager.remove_workspace(workspace, timestamp);
+    }
+
+    destroy() {
+        for (const entry of this._entries)
+            entry.context?.destroy();
+        this._entries = [];
+        this._signals.clear();
+        super.destroy();
+    }
+});
+
 const ResourcesButton = GObject.registerClass(
 class ResourcesButton extends PanelMenu.Button {
     _init() {
         super._init(0, 'Open Resources', true);
         this.add_style_class_name('gnozzard-resources-button');
-        const content = new St.BoxLayout({style_class: 'gnozzard-resources-content'});
-        content.add_child(new St.Icon({
+        const icon = new St.Icon({
             icon_name: 'org.openresearchtools.GnozzardResources-symbolic',
             icon_size: 16,
-        }));
-        content.add_child(new St.Label({
-            text: 'Resources',
-            y_align: Clutter.ActorAlign.CENTER,
-        }));
+            style_class: 'system-status-icon',
+        });
         const activationButton = new St.Button({
             style_class: 'gnozzard-resources-activation',
             accessible_name: 'Open Resources',
             can_focus: false,
             reactive: true,
             button_mask: St.ButtonMask.ONE,
-            child: content,
+            child: icon,
         });
         activationButton.connect('clicked', () => this._activate());
         this.add_child(activationButton);
@@ -1115,10 +1341,10 @@ export default class GnozzardExtension extends Extension {
             this._refreshPanels());
         this._signals.connect(Main.layoutManager, 'monitors-changed', () =>
             this._rebuildPanels());
-        this._signals.connect(this._settings, 'changed::force-single-workspace', () =>
-            this._applyWorkspaceSetting());
         this._signals.connect(this._settings, 'changed::show-resources-button', () =>
             this._syncResourcesButton());
+        this._signals.connect(this._settings, 'changed::taskbar-all-workspaces', () =>
+            this._refreshPanels());
         this._signals.connect(this._settings, 'changed::taskbars-all-displays', () =>
             this._rebuildPanels());
         this._signals.connect(this._settings, 'changed::capped-task-buttons', () =>
@@ -1145,6 +1371,7 @@ export default class GnozzardExtension extends Extension {
         this._desktopStarted = true;
         Main.panel?.add_style_class_name('gnozzard-top-panel');
         this._rebuildPanels();
+        this._syncWorkspacesButton();
         this._syncResourcesButton();
     }
 
@@ -1187,6 +1414,8 @@ export default class GnozzardExtension extends Extension {
         this._watchedWindows.add(window);
         this._signals.connect(window, 'notify::skip-taskbar', () =>
             this._refreshPanels());
+        this._signals.connect(window, 'workspace-changed', () =>
+            this._refreshPanels());
         this._signals.connect(window, 'unmanaged', () => {
             this._signals.disconnectObject(window);
             this._watchedWindows.delete(window);
@@ -1222,9 +1451,6 @@ export default class GnozzardExtension extends Extension {
         const background = this._schema('org.gnome.desktop.background');
         const shellKeybindings = this._schema('org.gnome.shell.keybindings');
         if (!this._settings.get_boolean('settings-owned')) {
-            this._settings.set_boolean('previous-dynamic-workspaces',
-                mutter.get_boolean('dynamic-workspaces'));
-            this._settings.set_int('previous-num-workspaces', wm.get_int('num-workspaces'));
             this._settings.set_boolean('previous-hot-corners',
                 desktop.get_boolean('enable-hot-corners'));
             this._settings.set_string('previous-button-layout', wm.get_string('button-layout'));
@@ -1237,6 +1463,7 @@ export default class GnozzardExtension extends Extension {
         desktop.set_string('color-scheme', 'prefer-dark');
         desktop.set_string('icon-theme', 'Gnozzard');
         wm.set_string('button-layout', ':minimize,maximize,close');
+        mutter.set_boolean('dynamic-workspaces', false);
         mutter.set_string('overlay-key', '');
         background.set_string('picture-uri', '');
         background.set_string('picture-uri-dark', '');
@@ -1252,7 +1479,6 @@ export default class GnozzardExtension extends Extension {
             shellKeybindings.set_strv('toggle-application-view', []);
         }
         this._applyLockBackground();
-        this._applyWorkspaceSetting();
     }
 
     _applyLockBackground() {
@@ -1294,18 +1520,21 @@ export default class GnozzardExtension extends Extension {
         this._settings.set_boolean('lock-settings-owned', false);
     }
 
-    _applyWorkspaceSetting() {
-        const mutter = this._schema('org.gnome.mutter');
-        const wm = this._schema('org.gnome.desktop.wm.preferences');
-        if (this._settings.get_boolean('force-single-workspace')) {
-            mutter.set_boolean('dynamic-workspaces', false);
-            wm.set_int('num-workspaces', 1);
-        } else if (this._settings.get_boolean('settings-owned')) {
-            mutter.set_boolean('dynamic-workspaces',
-                this._settings.get_boolean('previous-dynamic-workspaces'));
-            wm.set_int('num-workspaces',
-                this._settings.get_int('previous-num-workspaces'));
-        }
+    _syncWorkspacesButton() {
+        if (!this._desktopStarted)
+            return;
+        this._workspacesButton?.destroy();
+        this._workspacesButton = new WorkspacesButton();
+        const activities = Main.panel.statusArea.activities?.container ??
+            Main.panel.statusArea.activities;
+        if (activities)
+            activities.visible = false;
+        Main.panel.addToStatusArea(
+            WORKSPACES_BUTTON_ROLE,
+            this._workspacesButton,
+            0,
+            'left'
+        );
     }
 
     _syncResourcesButton() {
@@ -1313,17 +1542,13 @@ export default class GnozzardExtension extends Extension {
             return;
         this._resourcesButton?.destroy();
         this._resourcesButton = null;
-        const activities = Main.panel.statusArea.activities?.container ??
-            Main.panel.statusArea.activities;
-        if (activities)
-            activities.visible = !this._settings.get_boolean('show-resources-button');
         if (this._settings.get_boolean('show-resources-button')) {
             this._resourcesButton = new ResourcesButton();
             Main.panel.addToStatusArea(
                 RESOURCES_BUTTON_ROLE,
                 this._resourcesButton,
                 0,
-                'left'
+                'right'
             );
         }
     }
@@ -1339,15 +1564,12 @@ export default class GnozzardExtension extends Extension {
         }
         if (!this._settings?.get_boolean('settings-owned'))
             return;
-        const mutter = this._schema('org.gnome.mutter');
         const wm = this._schema('org.gnome.desktop.wm.preferences');
         const desktop = this._schema('org.gnome.desktop.interface');
-        mutter.set_boolean('dynamic-workspaces',
-            this._settings.get_boolean('previous-dynamic-workspaces'));
-        wm.set_int('num-workspaces', this._settings.get_int('previous-num-workspaces'));
         desktop.set_boolean('enable-hot-corners',
             this._settings.get_boolean('previous-hot-corners'));
         wm.set_string('button-layout', this._settings.get_string('previous-button-layout'));
+        const mutter = this._schema('org.gnome.mutter');
         mutter.set_string('overlay-key', this._settings.get_string('previous-overlay-key'));
         this._settings.set_boolean('settings-owned', false);
     }
@@ -1367,6 +1589,8 @@ export default class GnozzardExtension extends Extension {
             Main.panel.set_style(this._previousTopPanelStyle);
         }
         this._previousTopPanelStyle = null;
+        this._workspacesButton?.destroy();
+        this._workspacesButton = null;
         this._resourcesButton?.destroy();
         this._resourcesButton = null;
         const activities = Main.panel.statusArea.activities?.container ??

@@ -1,3 +1,9 @@
 [org.gnome.shell]
 enabled-extensions=['gnozzard@openresearchtools', 'ding@rastersoft.com', 'ubuntu-appindicators@ubuntu.com']
 disabled-extensions=['ubuntu-dock@ubuntu.com']
+
+[org.gnome.mutter]
+dynamic-workspaces=false
+
+[org.gnome.desktop.wm.preferences]
+num-workspaces=1

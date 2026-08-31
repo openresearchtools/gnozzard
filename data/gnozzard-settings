@@ -61,7 +61,7 @@ class GnozzardSettings(Adw.Application):
             extension_group,
             GNOZZARD_UUID,
             "Gnozzard extension",
-            "Classic taskbar, Applications menu and Resources launcher.",
+            "Classic taskbar, Applications menu and workplace controls.",
         )
         self._add_extension_row(
             extension_group,
@@ -89,6 +89,17 @@ class GnozzardSettings(Adw.Application):
         self._settings.bind(
             "taskbars-all-displays",
             all_displays,
+            "active",
+            Gio.SettingsBindFlags.DEFAULT,
+        )
+        all_workspaces = Adw.SwitchRow(
+            title="Windows from all workplaces",
+            subtitle="On shows every workplace on the taskbar. Selecting a window switches to its workplace; Off shows only the current workplace.",
+        )
+        taskbar_group.add(all_workspaces)
+        self._settings.bind(
+            "taskbar-all-workspaces",
+            all_workspaces,
             "active",
             Gio.SettingsBindFlags.DEFAULT,
         )

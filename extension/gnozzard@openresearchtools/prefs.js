@@ -16,16 +16,16 @@ export default class GnozzardPreferences extends ExtensionPreferences {
         });
         const group = new Adw.PreferencesGroup({title: 'Classic desktop'});
 
-        const singleWorkspace = new Adw.SwitchRow({
-            title: 'Use one workspace',
-            subtitle: 'Disable GNOME dynamic workspaces while the extension is active',
+        const allWorkspaces = new Adw.SwitchRow({
+            title: 'Windows from all workplaces',
+            subtitle: 'Selecting another workplace’s window switches to that workplace',
         });
-        settings.bind('force-single-workspace', singleWorkspace, 'active', Gio.SettingsBindFlags.DEFAULT);
-        group.add(singleWorkspace);
+        settings.bind('taskbar-all-workspaces', allWorkspaces, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(allWorkspaces);
 
         const resources = new Adw.SwitchRow({
-            title: 'Resources button',
-            subtitle: 'Replace Activities at the top left with Resources',
+            title: 'Resources launcher',
+            subtitle: 'Show an icon beside top-bar status items',
         });
         settings.bind('show-resources-button', resources, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(resources);

@@ -78,10 +78,11 @@ Depends:
  polkitd,
  zenity,
  systemd
-Description: fast classic single-workspace desktop layer for GNOME
+Description: fast classic desktop layer with GNOME workspace controls
  Gnozzard keeps GNOME's system indicators but adds a permanent solid
  bottom panel, one ungrouped button per window, a tall Applications menu,
- pinned apps, Show Desktop, desktop shortcuts and a Resources launcher.
+ pinned apps, Show Desktop, desktop shortcuts, top-bar workplace controls and
+ a Resources launcher.
  .
  It also provides native AppImage launching and Nautilus context actions, and
  installs its matching Resources system monitor package. Common GTK,

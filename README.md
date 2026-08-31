@@ -16,15 +16,18 @@ The panel provides:
 - one task button per window (never grouped), with capped widths by default and per-display 5-window paging when a taskbar is full;
 - click-to-focus/minimise task buttons;
 - task-button actions for graceful Close and red Force Kill;
+- task-button actions for moving a window to an existing or new workplace;
 - drag-to-reorder task buttons with one shared order on every monitor;
 - the same complete taskbar and open-window list on every connected monitor;
 - a small, text-free Show Desktop button;
 - application actions for pinning and creating desktop shortcuts;
 - a native Gnozzard app for the extension, taskbars, tray icons and desktop items;
-- one-workspace and minimise-button defaults while the extension is enabled.
+- top-bar workplace buttons, with on-demand creation and native GNOME switching;
+- an option to show the current workplace or every workplace on the taskbar;
+- minimise-button defaults while the extension is enabled.
 
-Gnozzard brings a classic single-workspace desktop model to modern GNOME, with
-one taskbar entry per window, a simple searchable application list, and
+Gnozzard brings a classic desktop model to modern GNOME, with one taskbar entry
+per window, a simple searchable application list, native GNOME workspaces, and
 continued support for GNOME's top bar, system controls, and tray applications.
 
 The `gnozzard` package also installs Desktop Icons NG, AppIndicator tray support,

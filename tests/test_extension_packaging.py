@@ -152,6 +152,8 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertNotIn("session-initialized", settings_app)
         self.assertIn("self._refresh_failures = 0", settings_app)
         self.assertIn("self._refresh_failures += 1", settings_app)
+        self.assertIn('title="Windows from all workplaces"', settings_app)
+        self.assertIn('"taskbar-all-workspaces"', settings_app)
         self.assertIn(
             "self._refresh_failures >= 3 and self._dialog is None", settings_app
         )
@@ -242,6 +244,11 @@ class ExtensionPackagingTests(unittest.TestCase):
             "}", 1
         )[0]
         self.assertIn("color: #ffffff;", task_label)
+        top_panel = stylesheet.split("#panel.gnozzard-top-panel", 1)[1].split(
+            "}", 1
+        )[0]
+        self.assertIn("font-weight: normal;", top_panel)
+        self.assertIn("#panel.gnozzard-top-panel .panel-button", stylesheet)
 
     def test_applications_search_is_cleared_when_menu_closes(self):
         source = (
@@ -280,15 +287,37 @@ class ExtensionPackagingTests(unittest.TestCase):
         application_row = source.split("class ApplicationRow", 1)[1].split(
             "class ApplicationsMenu", 1
         )[0]
+        app_context = source.split("class AppContextMenu", 1)[1].split(
+            "class ApplicationRow", 1
+        )[0]
         task_button = source.split("class TaskButton", 1)[1].split(
             "class ClassicPanel", 1
         )[0]
-        self.assertIn("app.activate();", application_row)
+        task_context = source.split("class TaskContextMenu", 1)[1].split(
+            "class TaskButton", 1
+        )[0]
+        self.assertIn("launchApplication(app);", application_row)
         self.assertIn("Main.overview.hide();", application_row)
-        self.assertNotIn("app.open_new_window", application_row)
+        launcher = source.split("function launchApplication", 1)[1].split(
+            "function launchGraphicalCommand", 1
+        )[0]
+        self.assertIn("app.can_open_new_window()", launcher)
+        self.assertIn("app.open_new_window(", launcher)
+        self.assertIn("get_active_workspace_index()", launcher)
+        self.assertIn("app.activate();", launcher)
+        self.assertIn("launchApplication(this._app);", app_context)
         self.assertIn("Main.activateWindow(this.window);", task_button)
+        self.assertIn("workspace === activeWorkspace", task_button)
+        self.assertIn("focused && onActiveWorkspace", task_button)
         self.assertNotIn("this.window.unminimize()", task_button)
         self.assertNotIn("this.window.activate(", task_button)
+        self.assertIn("new PopupMenu.PopupSubMenuMenuItem('Move to Workplace')", task_context)
+        self.assertIn("this.actor.connect('popup-menu'", task_button)
+        self.assertIn("workspaceLabel(index)", task_context)
+        self.assertIn("item.setSensitive(workspace !== current)", task_context)
+        self.assertIn("new PopupMenu.PopupMenuItem('New Workplace')", task_context)
+        self.assertIn("append_new_workspace(", task_context)
+        self.assertIn("this._window.change_workspace(workspace)", task_context)
         self.assertNotIn("_iconRetry", task_button)
         self.assertIn("'tracked-windows-changed'", source)
         self.assertIn("this._updatePanelIcons()", source)
@@ -361,28 +390,101 @@ class ExtensionPackagingTests(unittest.TestCase):
         source = (
             ROOT / "extension/gnozzard@openresearchtools/extension.js"
         ).read_text()
+        resources = source.split("const ResourcesButton", 1)[1].split(
+            "export default class", 1
+        )[0]
         self.assertIn(
             "const RESOURCES_BUTTON_ROLE = 'gnozzardResourcesButton'", source
         )
-        self.assertIn("class ResourcesButton extends PanelMenu.Button", source)
-        self.assertIn("style_class: 'gnozzard-resources-activation'", source)
-        self.assertIn("activationButton.connect('clicked'", source)
-        self.assertIn("can_focus: false", source)
-        self.assertIn("vfunc_key_release_event(event)", source)
+        self.assertIn("class ResourcesButton extends PanelMenu.Button", resources)
+        self.assertIn("style_class: 'gnozzard-resources-activation'", resources)
+        self.assertIn("style_class: 'system-status-icon'", resources)
+        self.assertNotIn("new St.Label", resources)
+        self.assertIn("activationButton.connect('clicked'", resources)
+        self.assertIn("can_focus: false", resources)
+        self.assertIn("vfunc_key_release_event(event)", resources)
         self.assertIn("Main.panel.addToStatusArea(", source)
         self.assertNotIn("Main.panel._leftBox", source)
+        self.assertNotIn("Main.panel._rightBox", source)
         self.assertNotIn("removeResourcesButtons", source)
         sync = source.split("_syncResourcesButton() {", 1)[1].split(
             "_restoreSettings()", 1
         )[0]
         self.assertIn("this._resourcesButton?.destroy();", sync)
+        self.assertIn("'right'", sync)
 
-    def test_paginated_reorder_and_show_desktop_use_all_windows(self):
+    def test_workplaces_use_native_mutter_creation_switching_and_removal(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        schema = (
+            ROOT
+            / "extension/gnozzard@openresearchtools/schemas/"
+            "org.openresearchtools.gnozzard.gschema.xml"
+        ).read_text()
+        defaults = (ROOT / "data/90_gnozzard.gschema.override").read_text()
+        workplaces = source.split("const WorkspacesButton", 1)[1].split(
+            "const ResourcesButton", 1
+        )[0]
+
+        self.assertIn(
+            "const WORKSPACES_BUTTON_ROLE = 'gnozzardWorkspacesButton'", source
+        )
+        self.assertIn("class WorkspacesButton extends PanelMenu.Button", workplaces)
+        self.assertIn("workspaceLabel(index)", workplaces)
+        self.assertIn("return index === 0 ? 'Desktop'", source)
+        self.assertIn("label: '+'", workplaces)
+        self.assertIn("append_new_workspace(true", workplaces)
+        self.assertIn("entry.workspace?.activate(global.get_current_time())", workplaces)
+        self.assertIn("'workspace-switched'", workplaces)
+        self.assertIn("get_active_workspace_index()", workplaces)
+        self.assertIn("const active = index === activeIndex", workplaces)
+        self.assertIn("style_class: 'gnozzard-workspace-indicator'", workplaces)
+        self.assertIn("entry.indicator.opacity = active ? 255 : 0", workplaces)
+        self.assertIn("Clutter.BUTTON_SECONDARY", workplaces)
+        self.assertIn("entry.actor.connect('popup-menu'", workplaces)
+        self.assertIn("new PopupMenu.PopupMenuItem('Close Workplace')", source)
+        self.assertIn("entry.workspace !== main", workplaces)
+        self.assertIn("if (!workspace || !main || workspace === main)", workplaces)
+        self.assertIn("for (const window of workspace.list_windows())", workplaces)
+        self.assertIn("window.change_workspace(main)", workplaces)
+        self.assertIn("this._workspaceManager.remove_workspace(workspace", workplaces)
+        self.assertIn("[org.gnome.mutter]\ndynamic-workspaces=false", defaults)
+        self.assertIn(
+            "[org.gnome.desktop.wm.preferences]\nnum-workspaces=1", defaults
+        )
+        self.assertIn("mutter.set_boolean('dynamic-workspaces', false)", source)
+        self.assertNotIn('name="force-single-workspace"', schema)
+        self.assertNotIn('name="previous-dynamic-workspaces"', schema)
+        self.assertNotIn('name="previous-num-workspaces"', schema)
+
+    def test_taskbar_can_follow_current_or_all_workplaces(self):
+        source = (
+            ROOT / "extension/gnozzard@openresearchtools/extension.js"
+        ).read_text()
+        schema = (
+            ROOT
+            / "extension/gnozzard@openresearchtools/schemas/"
+            "org.openresearchtools.gnozzard.gschema.xml"
+        ).read_text()
+        key = schema.split('name="taskbar-all-workspaces"', 1)[1].split(
+            "</key>", 1
+        )[0]
+        self.assertIn("<default>false</default>", key)
+        self.assertIn("this._settings.get_boolean('taskbar-all-workspaces')", source)
+        self.assertIn("const workspace = allWorkspaces", source)
+        self.assertIn("? null", source)
+        self.assertIn("Main.activateWindow(this.window);", source)
+        self.assertIn("this._signals.connect(window, 'workspace-changed'", source)
+        self.assertIn("'changed::taskbar-all-workspaces'", source)
+
+    def test_paginated_reorder_uses_eligible_windows_and_show_desktop_is_local(self):
         source = (
             ROOT / "extension/gnozzard@openresearchtools/extension.js"
         ).read_text()
         self.assertIn("const order = this._sharedState.windowOrder", source)
         self.assertIn("const windows = this._eligibleWindows();", source)
+        self.assertIn("const windows = this._windowList(false);", source)
         self.assertIn("for (const window of windows)", source)
 
     def test_extension_defaults_are_declarative_before_shell_start(self):
