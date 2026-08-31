@@ -1,3 +1,9 @@
+gnozzard (0.1.10) unstable; urgency=medium
+
+  * Automated release version bump.
+
+ -- Open Research Tools <openresearchtools@users.noreply.github.com>  Mon, 31 Aug 2026 11:31:41 +0000
+
 gnozzard (0.1.9) unstable; urgency=medium
 
   * Run local desktop launchers through GLib's native desktop-app API.
