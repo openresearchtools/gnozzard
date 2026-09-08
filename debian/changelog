@@ -1,3 +1,10 @@
+gnozzard (0.1.12) unstable; urgency=medium
+
+  * Add native workplace reordering through Move Left / Move Right actions.
+  * Keep Desktop first and preserve per-workplace tiling preferences.
+
+ -- Open Research Tools <openresearchtools@users.noreply.github.com>  Tue, 08 Sep 2026 02:48:05 +0100
+
 gnozzard (0.1.11) unstable; urgency=medium
 
   * Add optional per-workplace automatic window arrangement, off by default.

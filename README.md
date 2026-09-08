@@ -20,6 +20,10 @@ windows join the layout; when there is not enough room, Gnozzard moves the
 window to another workplace and switches there. Workplace management uses
 GNOME's native workspaces.
 
+Right-click a workplace and choose **Move Left** or **Move Right** to reorder
+it with all its windows. **Desktop** stays first; the other workplaces are
+numbered by their current position.
+
 The Gnozzard app has **12 customisation controls**, in addition to its main
 on/off switch:
 

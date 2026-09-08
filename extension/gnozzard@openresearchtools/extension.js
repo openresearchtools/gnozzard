@@ -16,7 +16,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {AutoTiler} from './tiling.js';
 import {TilingOwnership} from './tilingOwnership.js';
 import {WorkplaceEdges} from './workplaceEdges.js';
-import {workspaceLabel} from './workplaces.js';
+import {workspaceLabel, reorderWorkplace} from './workplaces.js';
 import {addWorkplaceMenu, addForceKillAction, NativeWindowMenus} from './windowActions.js';
 import {BarAutoHide} from './barAutoHide.js';
 
@@ -1104,7 +1104,7 @@ class ClassicPanel {
 }
 
 class WorkspaceContextMenu {
-    constructor(source, closeable, onClose, tiler, workspace) {
+    constructor(source, closeable, onClose, tiler, workspace, settings) {
         this.menu = new PopupMenu.PopupMenu(source, 0.5, popupSide(source));
         Main.uiGroup.add_child(this.menu.actor);
         this.menu.actor.hide();
@@ -1128,6 +1128,15 @@ class WorkspaceContextMenu {
             this.menu.addMenuItem(layouts);
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
+        for (const [label, offset] of [['Move Left', -1], ['Move Right', 1]]) {
+            const item = new PopupMenu.PopupMenuItem(label);
+            const target = workspace.index() + offset;
+            item.setSensitive(closeable && target > 0 &&
+                target < global.workspace_manager.get_n_workspaces());
+            item.connect('activate', () => reorderWorkplace(workspace, offset, settings));
+            this.menu.addMenuItem(item);
+        }
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         const close = new PopupMenu.PopupMenuItem('Close Workplace');
         close.setSensitive(closeable);
         close.connect('activate', onClose);
@@ -1146,8 +1155,9 @@ class WorkspaceContextMenu {
 
 const WorkspacesButton = GObject.registerClass(
 class WorkspacesButton extends PanelMenu.Button {
-    _init(getTiler) {
+    _init(settings, getTiler) {
         super._init(0, 'Workplaces', true);
+        this._settings = settings;
         this._getTiler = getTiler;
         this.add_style_class_name('gnozzard-workspaces-button');
         this._signals = new SignalStore();
@@ -1166,6 +1176,8 @@ class WorkspacesButton extends PanelMenu.Button {
         this._content.add_child(this._addButton);
         this.add_child(this._content);
         this._signals.connect(this._workspaceManager, 'notify::n-workspaces', () =>
+            this._sync());
+        this._signals.connect(this._workspaceManager, 'workspaces-reordered', () =>
             this._sync());
         this._signals.connect(this._workspaceManager, 'workspace-switched', () =>
             this._syncActive());
@@ -1212,7 +1224,8 @@ class WorkspacesButton extends PanelMenu.Button {
             entry.workspace !== main,
             () => this._closeWorkspace(entry.workspace),
             this._getTiler(),
-            entry.workspace
+            entry.workspace,
+            this._settings
         );
         entry.context.open();
     }
@@ -1228,6 +1241,8 @@ class WorkspacesButton extends PanelMenu.Button {
         }
         for (let index = 0; index < count; index++) {
             const entry = this._entries[index];
+            entry.context?.destroy();
+            entry.context = null;
             entry.workspace = this._workspaceManager.get_workspace_by_index(index);
             const label = workspaceLabel(index);
             entry.label.set_text(label);
@@ -1654,7 +1669,7 @@ export default class GnozzardExtension extends Extension {
         if (!this._desktopStarted)
             return;
         this._workspacesButton?.destroy();
-        this._workspacesButton = new WorkspacesButton(() => this._autoTiler);
+        this._workspacesButton = new WorkspacesButton(this._settings, () => this._autoTiler);
         const activities = Main.panel.statusArea.activities?.container ??
             Main.panel.statusArea.activities;
         if (activities)

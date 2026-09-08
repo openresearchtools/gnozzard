@@ -20,6 +20,7 @@ gjs -m tests/barAutoHide.js
 gjs -m tests/barLayout.js
 gjs -m tests/windowActions.js
 gjs -m tests/workplaceEdges.js
+gjs -m tests/workplaces.js
 
 # gjs parses the complete module before resolving Shell-only runtime globals.
 # A missing resource import is expected outside the Shell process; syntax errors
