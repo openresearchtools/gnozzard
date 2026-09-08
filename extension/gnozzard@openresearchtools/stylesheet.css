@@ -73,7 +73,8 @@
   spacing: 8px;
 }
 
-.gnozzard-applications-popup {
+.popup-menu.gnozzard-applications-popup {
+  margin: 0;
   -arrow-rise: 0;
   -boxpointer-gap: 0;
 }
@@ -84,6 +85,11 @@
   border-radius: 12px 12px 0 0;
   box-shadow: none;
   padding: 0;
+}
+
+.gnozzard-applications-below .gnozzard-app-menu,
+.gnozzard-applications-below .popup-menu-content {
+  border-radius: 0 0 12px 12px;
 }
 
 .gnozzard-app-search {
@@ -195,3 +201,9 @@
 .gnozzard-destructive-text {
   color: #ff5f57;
 }
+/* Only shared gaps receive input, never window content. */
+.gnozzard-tile-divider { background-color: transparent; }
+.gnozzard-tile-divider:hover { background-color: rgba(233, 84, 32, 0.7); }
+.gnozzard-tile-preview { background-color: rgba(233, 84, 32, 0.18); border: 2px solid #e95420; }
+.gnozzard-tile-preview:invalid { background-color: rgba(192, 28, 40, 0.18); border-color: #c01c28; }
+.gnozzard-tile-preview-label { background-color: #282828; color: white; border-radius: 6px; padding: 8px; font-size: 10pt; }

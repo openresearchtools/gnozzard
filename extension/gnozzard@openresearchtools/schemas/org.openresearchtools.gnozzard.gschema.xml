@@ -5,6 +5,47 @@
       <default>'#282828'</default>
       <summary>Solid panel colour</summary>
     </key>
+    <key name="taskbar-mode" type="s">
+      <choices><choice value="automatic"/><choice value="always"/><choice value="never"/></choices>
+      <default>'automatic'</default>
+      <summary>Show the taskbar automatically outside tiling, always, or never</summary>
+    </key>
+    <key name="taskbar-present" type="b">
+      <default>false</default>
+      <summary>Internal taskbar presence for settings sensitivity</summary>
+    </key>
+    <key name="swap-bars" type="b">
+      <default>false</default>
+      <summary>Put the system bar at the bottom and the taskbar at the top</summary>
+    </key>
+    <key name="autohide-top-bar" type="b">
+      <default>false</default>
+      <summary>Hide the system bar until the pointer reaches its screen edge</summary>
+    </key>
+    <key name="autohide-taskbar" type="b">
+      <default>false</default>
+      <summary>Hide each taskbar until the pointer reaches its screen edge</summary>
+    </key>
+    <key name="auto-tile-windows" type="b">
+      <default>false</default>
+      <summary>Automatically arrange windows per workplace and monitor</summary>
+    </key>
+    <key name="edge-switch-workplaces" type="b">
+      <default>false</default>
+      <summary>Switch to an existing neighbouring workplace at the left or right screen edge</summary>
+    </key>
+    <key name="tiling-linked-dividers" type="b">
+      <default>true</default>
+      <summary>Resize aligned dividers together</summary>
+    </key>
+    <key name="tiling-disabled-workplaces" type="ai">
+      <default>[]</default>
+      <summary>Workplaces using manual window placement</summary>
+    </key>
+    <key name="tiling-previous-state" type="s">
+      <default>'{}'</default>
+      <summary>Native tiling state to restore when Gnozzard is disabled</summary>
+    </key>
     <key name="pinned-apps" type="as">
       <default>[]</default>
       <summary>Desktop IDs pinned to the bottom of the Applications menu</summary>

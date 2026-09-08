@@ -14,15 +14,23 @@ PYTHONPYCACHEPREFIX="$check_tmp/pycache" \
 desktop-file-validate data/gnozzard-appimage-launcher.desktop \
     data/com.openresearchtools.GnozzardSettings.desktop
 glib-compile-schemas --strict --dry-run extension/gnozzard@openresearchtools/schemas
+gjs -m tests/tilingLayout.js
+gjs -m tests/tilingController.js
+gjs -m tests/barAutoHide.js
+gjs -m tests/barLayout.js
+gjs -m tests/windowActions.js
+gjs -m tests/workplaceEdges.js
 
 # gjs parses the complete module before resolving Shell-only runtime globals.
 # A missing resource import is expected outside the Shell process; syntax errors
 # are not.
-gjs -m extension/gnozzard@openresearchtools/extension.js >"$check_tmp/gjs.log" 2>&1 || {
+for module in extension.js tiling.js tilingOwnership.js workplaces.js barAutoHide.js windowActions.js workplaceEdges.js; do
+gjs -m "extension/gnozzard@openresearchtools/$module" >"$check_tmp/gjs.log" 2>&1 || {
     if grep -qiE 'SyntaxError|parse error' "$check_tmp/gjs.log"; then
         cat "$check_tmp/gjs.log" >&2
         exit 1
     fi
 }
+done
 
 echo "Gnozzard checks passed"

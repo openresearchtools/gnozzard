@@ -1,3 +1,30 @@
+gnozzard (0.1.11) unstable; urgency=medium
+
+  * Add optional per-workplace automatic window arrangement, off by default.
+  * Own and reversibly disable native and conflicting extension tiling.
+  * Use four-pixel tile gaps and outer margins with shared-edge handles.
+  * Reconcile application geometry changes and fit new windows beside groups.
+  * Accept real screen-edge and corner drops and explain minimum-size limits.
+  * Add independent top-bar and taskbar auto-hide settings using native struts.
+  * Widen both immediate bar activation strips to four pixels.
+  * Remove taskbars while tiling; reuse Applications in the system bar.
+  * Add taskbar visibility modes, swap bar positions and simplify settings.
+  * Share GNOME's native panel-menu manager without nested Applications grabs.
+  * Align Applications using the same label layout as the workplace buttons.
+  * Keep Applications attached to its bar and hold that bar while open.
+  * Disconnect menu callbacks before destroying a removed taskbar controller.
+  * Share workplace moves and Force Kill with GNOME's native titlebar menu.
+  * Disable taskbar-only controls when no taskbar exists; shorten mode labels.
+  * Avoid GNOME 46 unmaximize loops and improve client-size handling.
+  * Refit invalid splits with client sizes; preserve older windows on overflow.
+  * Associate asynchronous resize replies with outstanding configure requests.
+  * Keep pending requests through workplace changes and earlier client frames.
+  * Add optional edge switching between existing workplaces, off by default.
+  * Clarify the bar-swapping label in both settings interfaces.
+  * Older-GNOME tiling resize transitions still need broader validation.
+
+ -- Open Research Tools <openresearchtools@users.noreply.github.com>  Tue, 08 Sep 2026 02:05:46 +0100
+
 gnozzard (0.1.10) unstable; urgency=medium
 
   * Automated release version bump.

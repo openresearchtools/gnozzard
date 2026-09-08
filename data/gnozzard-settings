@@ -52,49 +52,54 @@ class GnozzardSettings(Adw.Application):
         toolbar.set_content(page)
         self._window.set_content(toolbar)
 
-        extension_group = Adw.PreferencesGroup(
-            title="Desktop",
-            description="Enable or disable the Gnozzard desktop components.",
-        )
+        extension_group = Adw.PreferencesGroup(title="Desktop")
         page.add(extension_group)
         self._add_extension_row(
             extension_group,
             GNOZZARD_UUID,
-            "Gnozzard extension",
-            "Classic taskbar, Applications menu and workplace controls.",
+            "Gnozzard",
         )
         self._add_extension_row(
             extension_group,
             TRAY_UUID,
-            "Application tray icons",
-            "Show applications that publish status or tray icons in GNOME's top bar.",
+            "Tray icons",
         )
         self._add_extension_row(
             extension_group,
             DESKTOP_UUID,
             "Desktop items",
-            "Show files, folders, portable apps and the Wastebasket on the desktop.",
         )
 
-        taskbar_group = Adw.PreferencesGroup(
+        arrangement = Adw.PreferencesGroup(title="Windows")
+        page.add(arrangement)
+        self._add_switch(arrangement, "auto-tile-windows", "Auto-arrange windows")
+        linked = self._add_switch(arrangement, "tiling-linked-dividers", "Link aligned dividers")
+        self._settings.bind("auto-tile-windows", linked, "sensitive", Gio.SettingsBindFlags.GET)
+
+        workplaces = Adw.PreferencesGroup(title="Workplaces")
+        page.add(workplaces)
+        self._add_switch(workplaces, "edge-switch-workplaces", "Switch workplaces at screen edges")
+
+        bars = Adw.PreferencesGroup(title="Bars")
+        page.add(bars)
+        modes = ("automatic", "always", "never")
+        taskbar_mode = Adw.ComboRow(
             title="Taskbar",
-            description="Changes apply immediately when Gnozzard is running.",
+            model=Gtk.StringList.new(["Off while tiling", "Always show", "Never show"]),
+            selected=modes.index(self._settings.get_string("taskbar-mode")),
         )
+        bars.add(taskbar_mode)
+        taskbar_mode.connect("notify::selected", lambda row, _spec:
+            self._settings.set_string("taskbar-mode", modes[row.get_selected()]))
+        self._add_switch(bars, "swap-bars", "Swap taskbar with system bar places")
+        self._add_switch(bars, "autohide-top-bar", "Auto-hide system bar")
+        autohide_taskbar = self._add_switch(bars, "autohide-taskbar", "Auto-hide taskbar")
+
+        taskbar_group = Adw.PreferencesGroup(title="Taskbar windows")
         page.add(taskbar_group)
-        all_displays = Adw.SwitchRow(
-            title="All displays",
-            subtitle="On shows the complete window list on every monitor; Off uses the primary display only. Each monitor sizes and pages independently.",
-        )
-        taskbar_group.add(all_displays)
-        self._settings.bind(
-            "taskbars-all-displays",
-            all_displays,
-            "active",
-            Gio.SettingsBindFlags.DEFAULT,
-        )
+        self._add_switch(taskbar_group, "taskbars-all-displays", "All displays")
         all_workspaces = Adw.SwitchRow(
             title="Windows from all workplaces",
-            subtitle="On shows every workplace on the taskbar. Selecting a window switches to its workplace; Off shows only the current workplace.",
         )
         taskbar_group.add(all_workspaces)
         self._settings.bind(
@@ -103,17 +108,16 @@ class GnozzardSettings(Adw.Application):
             "active",
             Gio.SettingsBindFlags.DEFAULT,
         )
-        capped = Adw.SwitchRow(
-            title="Capped task buttons",
-            subtitle="Keep buttons beside Applications, up to 260 px wide. A full taskbar pages through windows 5 at a time.",
-        )
-        taskbar_group.add(capped)
-        self._settings.bind(
-            "capped-task-buttons",
-            capped,
-            "active",
-            Gio.SettingsBindFlags.DEFAULT,
-        )
+        self._add_switch(taskbar_group, "capped-task-buttons", "Limit button width")
+        for widget in (taskbar_group, autohide_taskbar):
+            self._settings.bind("taskbar-present", widget, "sensitive", Gio.SettingsBindFlags.GET)
+
+        def sync_taskbar_mode(*_args):
+            mode = self._settings.get_string("taskbar-mode")
+            taskbar_mode.set_selected(modes.index(mode))
+
+        self._mode_signal = self._settings.connect("changed::taskbar-mode", sync_taskbar_mode)
+        sync_taskbar_mode()
 
         self._refresh_extension_rows()
         self._refresh_source = GLib.timeout_add_seconds(
@@ -132,8 +136,14 @@ class GnozzardSettings(Adw.Application):
             raise RuntimeError(f"GSettings schema {SCHEMA_ID} is not installed")
         return Gio.Settings.new_full(schema, None, None)
 
-    def _add_extension_row(self, group, uuid, title, subtitle):
-        row = Adw.SwitchRow(title=title, subtitle=subtitle)
+    def _add_switch(self, group, key, title):
+        row = Adw.SwitchRow(title=title)
+        group.add(row)
+        self._settings.bind(key, row, "active", Gio.SettingsBindFlags.DEFAULT)
+        return row
+
+    def _add_extension_row(self, group, uuid, title):
+        row = Adw.SwitchRow(title=title)
         row.connect("notify::active", self._on_extension_row_changed, uuid)
         group.add(row)
         self._extension_rows[uuid] = row
@@ -177,7 +187,7 @@ class GnozzardSettings(Adw.Application):
     def _confirm_turn_off(self):
         self._dialog = Adw.AlertDialog(
             heading="Turn off Gnozzard?",
-            body="The classic taskbar and Applications menu will close. This settings app stays open so Gnozzard can be turned back on here.",
+            body="The desktop controls will close. Settings will stay open.",
         )
         self._dialog.add_response("cancel", "Cancel")
         self._dialog.add_response("turn-off", "Turn Off")
@@ -239,6 +249,7 @@ class GnozzardSettings(Adw.Application):
         self._dialog = None
 
     def _on_close_request(self, _window):
+        self._settings.disconnect(self._mode_signal)
         if self._refresh_source:
             GLib.source_remove(self._refresh_source)
             self._refresh_source = 0

@@ -6,6 +6,84 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ExtensionPackagingTests(unittest.TestCase):
+    def test_taskbar_removal_defaults_to_tiling_and_is_separate_from_autohide(self):
+        import xml.etree.ElementTree as ET
+        schema = ET.parse(ROOT / "extension/gnozzard@openresearchtools/schemas/org.openresearchtools.gnozzard.gschema.xml")
+        self.assertEqual(schema.find(".//key[@name='taskbar-mode']/default").text, "'automatic'")
+        self.assertEqual(schema.find(".//key[@name='swap-bars']/default").text, "false")
+        source = (ROOT / "extension/gnozzard@openresearchtools/extension.js").read_text()
+        system_button = source.split("class SystemApplicationsButton", 1)[1].split("const ResourcesButton", 1)[0]
+        self.assertIn("new ApplicationsMenu(", system_button)
+        self.assertNotIn("new PopupMenu.PopupMenuManager", system_button)
+        self.assertIn("this.setMenu(this._menu.menu)", system_button)
+        self.assertNotIn("connect('clicked'", system_button)
+        self.assertIn("workplaceContent('Applications')", system_button)
+        self.assertNotIn("new St.Label", system_button)
+        self.assertIn("const {content, label, indicator} = workplaceContent()", source)
+        self.assertIn("this._applicationsMenuManager = Main.panel.menuManager", source)
+        self.assertIn("this._getAutoHide()?.setMenuOpen(open)", system_button)
+        self.assertIn("this._autoHide.setMenuOpen(open)", source)
+        css = (ROOT / "extension/gnozzard@openresearchtools/stylesheet.css").read_text()
+        popup_css = css.split(".popup-menu.gnozzard-applications-popup {", 1)[1].split("}", 1)[0]
+        self.assertIn("margin: 0", popup_css)
+        self.assertIn("this._systemApplications ?? this._primaryPanel()", source)
+        self.assertIn("!this._showTaskbar", source)
+        for path in ("data/gnozzard-settings", "extension/gnozzard@openresearchtools/prefs.js"):
+            settings = (ROOT / path).read_text()
+            for key in ("taskbar-mode", "swap-bars", "autohide-taskbar", "autohide-top-bar"):
+                self.assertIn(key, settings)
+
+    def test_settings_controls_have_concise_labels_without_help_paragraphs(self):
+        for path in ("data/gnozzard-settings", "extension/gnozzard@openresearchtools/prefs.js"):
+            source = (ROOT / path).read_text()
+            self.assertNotIn("subtitle", source)
+            self.assertNotIn("Drag to arrange", source)
+            self.assertIn("Off while tiling", source)
+            self.assertNotIn("Automatic — off while tiling", source)
+            self.assertIn("Swap taskbar with system bar places", source)
+            self.assertIn("Switch workplaces at screen edges", source)
+            self.assertIn("edge-switch-workplaces", source)
+
+    def test_taskbar_controls_read_actual_presence_not_a_second_visibility_policy(self):
+        for path in ("data/gnozzard-settings", "extension/gnozzard@openresearchtools/prefs.js"):
+            source = (ROOT / path).read_text()
+            self.assertIn("taskbar-present", source)
+            self.assertIn("Gio.SettingsBindFlags.GET", source)
+            self.assertNotIn('mode != "never"', source)
+            self.assertNotIn("value !== 'never'", source)
+        source = (ROOT / "extension/gnozzard@openresearchtools/extension.js").read_text()
+        disable = source.split("    disable() {", 1)[1]
+        self.assertIn("set_boolean('taskbar-present', false)", disable)
+
+    def test_bar_autohide_settings_are_independent_and_default_off(self):
+        import xml.etree.ElementTree as ET
+        schema = ET.parse(ROOT / "extension/gnozzard@openresearchtools/schemas/org.openresearchtools.gnozzard.gschema.xml")
+        app = (ROOT / "data/gnozzard-settings").read_text()
+        prefs = (ROOT / "extension/gnozzard@openresearchtools/prefs.js").read_text()
+        extension = (ROOT / "extension/gnozzard@openresearchtools/extension.js").read_text()
+        for key in ("autohide-top-bar", "autohide-taskbar"):
+            self.assertEqual(schema.find(f".//key[@name='{key}']/default").text, "false")
+            for source in (app, prefs, extension):
+                self.assertIn(key, source)
+        controller = (ROOT / "extension/gnozzard@openresearchtools/barAutoHide.js").read_text()
+        self.assertIn("affectsStruts: mode === 'fixed'", controller)
+        self.assertIn("this._actor.set_clip(0, 0, 0, 0)", controller)
+        self.assertNotIn("timeout_add", controller)
+        self.assertNotIn("set_builtin_struts", controller)
+
+    def test_auto_tiling_includes_maximized_resizable_windows_and_has_no_stacks(self):
+        tiler = (ROOT / "extension/gnozzard@openresearchtools/tiling.js").read_text()
+        layout = (ROOT / "extension/gnozzard@openresearchtools/tilingLayout.js").read_text()
+        eligibility = tiler.split("_eligible(record) {", 1)[1].split("_group(", 1)[0]
+        self.assertNotIn("resizeable", eligibility)
+        self.assertNotIn("w.allows_resize()", tiler)
+        self.assertIn("'notify::resizeable'", tiler)
+        self.assertIn("'notify::maximized-horizontally'", tiler)
+        self.assertIn("window.unminimize()", tiler)
+        self.assertIn("moveWindowToWorkplace(record.window", tiler)
+        self.assertNotIn("TAB_HEIGHT", tiler + layout)
+        self.assertNotIn("gnozzard-tile-tabs", tiler)
+
     def test_supported_shell_and_libadwaita_versions_cover_target_desktops(self):
         metadata = (
             ROOT / "extension/gnozzard@openresearchtools/metadata.json"
@@ -204,7 +282,7 @@ class ExtensionPackagingTests(unittest.TestCase):
         ).read_text()
         self.assertIn('name="capped-task-buttons"', schema)
         settings_app = (ROOT / "data/gnozzard-settings").read_text()
-        self.assertIn("Capped task buttons", settings_app)
+        self.assertIn("Limit button width", settings_app)
         self.assertIn("actorProperties.min_width = fixedWidth", source)
         self.assertIn("actorProperties.natural_width = fixedWidth", source)
         self.assertIn("const MIN_TASK_BUTTON_WIDTH = 96", source)
@@ -311,13 +389,19 @@ class ExtensionPackagingTests(unittest.TestCase):
         self.assertIn("focused && onActiveWorkspace", task_button)
         self.assertNotIn("this.window.unminimize()", task_button)
         self.assertNotIn("this.window.activate(", task_button)
-        self.assertIn("new PopupMenu.PopupSubMenuMenuItem('Move to Workplace')", task_context)
+        actions = (ROOT / "extension/gnozzard@openresearchtools/windowActions.js").read_text()
+        self.assertIn("addWorkplaceMenu(this.menu, this._window)", task_context)
+        self.assertIn("addForceKillAction(this.menu, this._window)", task_context)
+        self.assertIn("new PopupMenu.PopupSubMenuMenuItem('Move to Workplace')", actions)
         self.assertIn("this.actor.connect('popup-menu'", task_button)
-        self.assertIn("workspaceLabel(index)", task_context)
-        self.assertIn("item.setSensitive(workspace !== current)", task_context)
-        self.assertIn("new PopupMenu.PopupMenuItem('New Workplace')", task_context)
-        self.assertIn("append_new_workspace(", task_context)
-        self.assertIn("this._window.change_workspace(workspace)", task_context)
+        self.assertIn("workspaceLabel(index)", actions)
+        self.assertIn("item.setSensitive(workspace !== current)", actions)
+        self.assertIn("addAction('New Workplace'", actions)
+        move_helper = (ROOT / "extension/gnozzard@openresearchtools/workplaces.js").read_text()
+        self.assertIn("append_new_workspace(", move_helper)
+        self.assertIn("window.change_workspace(workspace)", move_helper)
+        self.assertIn("workspace.activate_with_focus(window, time)", move_helper)
+        self.assertIn("moveWindowToWorkplace(window, workspace)", actions)
         self.assertNotIn("_iconRetry", task_button)
         self.assertIn("'tracked-windows-changed'", source)
         self.assertIn("this._updatePanelIcons()", source)
@@ -432,14 +516,18 @@ class ExtensionPackagingTests(unittest.TestCase):
         )
         self.assertIn("class WorkspacesButton extends PanelMenu.Button", workplaces)
         self.assertIn("workspaceLabel(index)", workplaces)
-        self.assertIn("return index === 0 ? 'Desktop'", source)
+        move_helper = (ROOT / "extension/gnozzard@openresearchtools/workplaces.js").read_text()
+        self.assertIn("return index === 0 ? 'Desktop'", move_helper)
         self.assertIn("label: '+'", workplaces)
         self.assertIn("append_new_workspace(true", workplaces)
         self.assertIn("entry.workspace?.activate(global.get_current_time())", workplaces)
         self.assertIn("'workspace-switched'", workplaces)
         self.assertIn("get_active_workspace_index()", workplaces)
         self.assertIn("const active = index === activeIndex", workplaces)
-        self.assertIn("style_class: 'gnozzard-workspace-indicator'", workplaces)
+        content = source.split("function workplaceContent(", 1)[1].split("function launchApplication", 1)[0]
+        self.assertIn("style_class: 'gnozzard-workspace-indicator'", content)
+        self.assertIn("y_align: Clutter.ActorAlign.CENTER", content)
+        self.assertIn("const {content, label, indicator} = workplaceContent()", workplaces)
         self.assertIn("entry.indicator.opacity = active ? 255 : 0", workplaces)
         self.assertIn("Clutter.BUTTON_SECONDARY", workplaces)
         self.assertIn("entry.actor.connect('popup-menu'", workplaces)

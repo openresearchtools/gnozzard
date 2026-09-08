@@ -13,6 +13,12 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {AutoTiler} from './tiling.js';
+import {TilingOwnership} from './tilingOwnership.js';
+import {WorkplaceEdges} from './workplaceEdges.js';
+import {workspaceLabel} from './workplaces.js';
+import {addWorkplaceMenu, addForceKillAction, NativeWindowMenus} from './windowActions.js';
+import {BarAutoHide} from './barAutoHide.js';
 
 const PANEL_HEIGHT = 40;
 const MENU_WIDTH_RATIO = 0.28;
@@ -24,12 +30,33 @@ const TASK_PAGE_STEP = 5;
 const TASK_PAGE_BUTTON_WIDTH = 28;
 const WORKSPACES_BUTTON_ROLE = 'gnozzardWorkspacesButton';
 const RESOURCES_BUTTON_ROLE = 'gnozzardResourcesButton';
+const APPLICATIONS_BUTTON_ROLE = 'gnozzardApplicationsButton';
+
+function showTaskbar(mode, tiling) {
+    return mode === 'always' || mode === 'automatic' && !tiling;
+}
+
+function popupSide(source) {
+    const monitor = Main.layoutManager.findMonitorForActor(source);
+    const [, y] = source.get_transformed_position();
+    return monitor && y < monitor.y + monitor.height / 2 ? St.Side.TOP : St.Side.BOTTOM;
+}
+
 function stopEvent() {
     return Clutter.EVENT_STOP;
 }
 
-function workspaceLabel(index) {
-    return index === 0 ? 'Desktop' : `Workplace ${index + 1}`;
+function workplaceContent(text = '') {
+    const label = new St.Label({text, y_align: Clutter.ActorAlign.CENTER, y_expand: true});
+    const indicator = new St.Widget({
+        style_class: 'gnozzard-workspace-indicator', x_expand: true, opacity: 0,
+    });
+    const content = new St.BoxLayout({
+        style_class: 'gnozzard-workspace-entry-content', vertical: true, y_expand: true,
+    });
+    content.add_child(label);
+    content.add_child(indicator);
+    return {content, label, indicator};
 }
 
 function launchApplication(app) {
@@ -364,20 +391,23 @@ class ApplicationRow {
 }
 
 class ApplicationsMenu {
-    constructor(settings, panel, monitorIndex, manager) {
+    constructor(settings, source, monitorIndex, manager, edge, getAvailableHeight) {
         this._settings = settings;
         this._monitorIndex = monitorIndex;
+        this._getAvailableHeight = getAvailableHeight;
         this._rows = [];
         this._dirty = true;
         this._searchTimeout = 0;
         this._signals = new SignalStore();
         this.menu = new PopupMenu.PopupMenu(
-            panel.applicationsButton,
+            source,
             0,
-            St.Side.BOTTOM
+            edge === 'top' ? St.Side.TOP : St.Side.BOTTOM
         );
         this.menu.setSourceAlignment(0);
         this.menu.actor.add_style_class_name('gnozzard-applications-popup');
+        if (edge === 'top')
+            this.menu.actor.add_style_class_name('gnozzard-applications-below');
         Main.uiGroup.add_child(this.menu.actor);
         this.menu.actor.hide();
         manager.addMenu(this.menu);
@@ -439,8 +469,15 @@ class ApplicationsMenu {
         });
         this.menu.box.add_child(this.actor);
         this._signals.connect(this.menu, 'open-state-changed', (_menu, open) => {
-            if (!open)
+            if (open) {
+                Main.overview.hide();
+                this.relayout();
+                if (this._dirty)
+                    this._rebuild();
+                global.stage.set_key_focus(this._search.clutter_text);
+            } else {
                 this._resetSearch();
+            }
         });
         this._signals.connect(this._search.clutter_text, 'text-changed', () => {
             if (this._searchTimeout)
@@ -529,8 +566,7 @@ class ApplicationsMenu {
             Main.layoutManager.primaryMonitor;
         if (!monitor)
             return;
-        const top = Main.panel?.height ?? 0;
-        const height = Math.max(240, monitor.height - top - PANEL_HEIGHT);
+        const height = Math.max(1, this._getAvailableHeight());
         const width = Math.min(
             MENU_MAX_WIDTH,
             Math.max(MENU_MIN_WIDTH, Math.floor(monitor.width * MENU_WIDTH_RATIO))
@@ -546,12 +582,7 @@ class ApplicationsMenu {
     }
 
     open() {
-        Main.overview.hide();
-        this.relayout();
-        if (this._dirty)
-            this._rebuild();
         this.menu.open(true);
-        global.stage.set_key_focus(this._search.clutter_text);
     }
 
     close() {
@@ -582,7 +613,7 @@ class ApplicationsMenu {
 class TaskContextMenu {
     constructor(source, window) {
         this._window = window;
-        this.menu = new PopupMenu.PopupMenu(source, 0.5, St.Side.BOTTOM);
+        this.menu = new PopupMenu.PopupMenu(source, 0.5, popupSide(source));
         Main.uiGroup.add_child(this.menu.actor);
         this.menu.actor.hide();
         this._manager = new PopupMenu.PopupMenuManager(source);
@@ -591,27 +622,7 @@ class TaskContextMenu {
 
     _build() {
         this.menu.removeAll();
-        const workspaceManager = global.workspace_manager;
-        const current = this._window.is_on_all_workspaces()
-            ? null
-            : this._window.get_workspace();
-        const move = new PopupMenu.PopupSubMenuMenuItem('Move to Workplace');
-        for (let index = 0; index < workspaceManager.get_n_workspaces(); index++) {
-            const workspace = workspaceManager.get_workspace_by_index(index);
-            const item = new PopupMenu.PopupMenuItem(workspaceLabel(index));
-            item.setSensitive(workspace !== current);
-            item.connect('activate', () => this._moveTo(workspace));
-            move.menu.addMenuItem(item);
-        }
-        move.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        const create = new PopupMenu.PopupMenuItem('New Workplace');
-        create.connect('activate', () => {
-            const workspace = workspaceManager.append_new_workspace(
-                false, global.get_current_time());
-            this._moveTo(workspace);
-        });
-        move.menu.addMenuItem(create);
-        this.menu.addMenuItem(move);
+        addWorkplaceMenu(this.menu, this._window);
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         const close = new PopupMenu.PopupMenuItem('Close');
@@ -622,18 +633,7 @@ class TaskContextMenu {
         });
         this.menu.addMenuItem(close);
 
-        const forceKill = new PopupMenu.PopupMenuItem('Force Kill');
-        forceKill.label.add_style_class_name('gnozzard-destructive-text');
-        forceKill.connect('activate', () => this._window.kill());
-        this.menu.addMenuItem(forceKill);
-    }
-
-    _moveTo(workspace) {
-        if (!workspace)
-            return;
-        if (this._window.is_on_all_workspaces())
-            this._window.unstick();
-        this._window.change_workspace(workspace);
+        addForceKillAction(this.menu, this._window);
     }
 
     open() {
@@ -804,10 +804,13 @@ class ClassicPanel {
         sharedState,
         applicationsMenuManager,
         onWindowsChanged,
-        onOrderChanged
+        onOrderChanged,
+        edge,
+        getAvailableHeight
     ) {
         this._settings = settings;
         this._monitorIndex = monitorIndex;
+        this._edge = edge;
         this._sharedState = sharedState;
         this._onWindowsChanged = onWindowsChanged;
         this._onOrderChanged = onOrderChanged;
@@ -849,9 +852,11 @@ class ClassicPanel {
         this.actor.add_child(this._showDesktop);
         this._menu = new ApplicationsMenu(
             settings,
-            this,
+            this.applicationsButton,
             monitorIndex,
-            applicationsMenuManager
+            applicationsMenuManager,
+            edge,
+            getAvailableHeight
         );
         this.applicationsButton.connect('clicked', () => this._menu.toggle());
         this._taskPrevious.connect('clicked', () => this._moveTaskPage(-TASK_PAGE_STEP));
@@ -865,6 +870,11 @@ class ClassicPanel {
         this._signals.connect(settings, 'changed::panel-color', () => this._updateColour());
         this._updateColour();
         this.relayout();
+        this._autoHide = new BarAutoHide(this.actor, settings, 'autohide-taskbar', edge,
+            () => Main.layoutManager.monitors[this._monitorIndex]);
+        this._signals.connect(this._menu.menu, 'open-state-changed', (_menu, open) => {
+            this._autoHide.setMenuOpen(open);
+        });
         this._refreshTasks();
     }
 
@@ -1051,12 +1061,16 @@ class ClassicPanel {
             Main.layoutManager.primaryMonitor;
         if (!monitor)
             return;
-        this.actor.set_position(monitor.x, monitor.y + monitor.height - PANEL_HEIGHT);
+        this.actor.set_position(monitor.x,
+            this._edge === 'top' ? monitor.y : monitor.y + monitor.height - PANEL_HEIGHT);
         this.actor.set_size(monitor.width, PANEL_HEIGHT);
+        this._autoHide?.relayout();
         this._menu.relayout();
     }
 
     toggleApplications() {
+        // An explicit keyboard shortcut remains usable with a hidden bar.
+        this._autoHide.reveal();
         this._menu.toggle();
     }
 
@@ -1078,23 +1092,42 @@ class ClassicPanel {
     }
 
     destroy() {
+        this._signals.clear();
         this._menu.destroy();
+        this._autoHide.destroy();
         for (const task of this._tasks)
             task.destroy();
         this._tasks = [];
-        this._signals.clear();
         Main.layoutManager.removeChrome(this.actor);
         this.actor.destroy();
     }
 }
 
 class WorkspaceContextMenu {
-    constructor(source, closeable, onClose) {
-        this.menu = new PopupMenu.PopupMenu(source, 0.5, St.Side.TOP);
+    constructor(source, closeable, onClose, tiler, workspace) {
+        this.menu = new PopupMenu.PopupMenu(source, 0.5, popupSide(source));
         Main.uiGroup.add_child(this.menu.actor);
         this.menu.actor.hide();
         this._manager = new PopupMenu.PopupMenuManager(source);
         this._manager.addMenu(this.menu);
+        if (tiler) {
+            const enabled = tiler.isWorkspaceEnabled(workspace);
+            const arrange = new PopupMenu.PopupSwitchMenuItem('Auto-arrange windows', enabled);
+            arrange.connect('toggled', (_item, state) => tiler.setWorkspaceEnabled(workspace, state));
+            this.menu.addMenuItem(arrange);
+            const layouts = new PopupMenu.PopupSubMenuMenuItem('Arrange as');
+            for (const [name, kind] of [['Automatic', 'auto'], ['Rows', 'rows'],
+                ['Columns', 'columns'], ['One above the rest', 'top'], ['One beside the rest', 'side']]) {
+                const item = new PopupMenu.PopupMenuItem(name);
+                item.connect('activate', () => {
+                    tiler.setWorkspaceEnabled(workspace, true);
+                    tiler.setLayout(workspace, kind);
+                });
+                layouts.menu.addMenuItem(item);
+            }
+            this.menu.addMenuItem(layouts);
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        }
         const close = new PopupMenu.PopupMenuItem('Close Workplace');
         close.setSensitive(closeable);
         close.connect('activate', onClose);
@@ -1113,8 +1146,9 @@ class WorkspaceContextMenu {
 
 const WorkspacesButton = GObject.registerClass(
 class WorkspacesButton extends PanelMenu.Button {
-    _init() {
+    _init(getTiler) {
         super._init(0, 'Workplaces', true);
+        this._getTiler = getTiler;
         this.add_style_class_name('gnozzard-workspaces-button');
         this._signals = new SignalStore();
         this._entries = [];
@@ -1145,21 +1179,7 @@ class WorkspacesButton extends PanelMenu.Button {
             reactive: true,
             button_mask: St.ButtonMask.ONE,
         });
-        const label = new St.Label({
-            y_align: Clutter.ActorAlign.CENTER,
-            y_expand: true,
-        });
-        const indicator = new St.Widget({
-            style_class: 'gnozzard-workspace-indicator',
-            x_expand: true,
-        });
-        const content = new St.BoxLayout({
-            style_class: 'gnozzard-workspace-entry-content',
-            vertical: true,
-            y_expand: true,
-        });
-        content.add_child(label);
-        content.add_child(indicator);
+        const {content, label, indicator} = workplaceContent();
         actor.set_child(content);
         const entry = {
             workspace: null,
@@ -1190,7 +1210,9 @@ class WorkspacesButton extends PanelMenu.Button {
         entry.context = new WorkspaceContextMenu(
             entry.actor,
             entry.workspace !== main,
-            () => this._closeWorkspace(entry.workspace)
+            () => this._closeWorkspace(entry.workspace),
+            this._getTiler(),
+            entry.workspace
         );
         entry.context.open();
     }
@@ -1254,6 +1276,37 @@ class WorkspacesButton extends PanelMenu.Button {
     }
 });
 
+const SystemApplicationsButton = GObject.registerClass(
+class SystemApplicationsButton extends PanelMenu.Button {
+    _init(settings, monitorIndex, manager, edge, getAvailableHeight, getAutoHide) {
+        super._init(0, 'Applications');
+        this.add_style_class_name('gnozzard-workspaces-button');
+        this._getAutoHide = getAutoHide;
+        this.applicationsButton = this;
+        const {content} = workplaceContent('Applications');
+        content.add_style_class_name('gnozzard-workspace-button');
+        this.add_child(content);
+        // The same menu and single menu manager are used in either bar.
+        this._menu = new ApplicationsMenu(settings, this.applicationsButton,
+            monitorIndex, manager, edge, getAvailableHeight);
+        this.setMenu(this._menu.menu);
+        this._menu.menu.connect('open-state-changed', (_menu, open) => {
+            this._getAutoHide()?.setMenuOpen(open);
+        });
+    }
+
+    toggleApplications() {
+        this._getAutoHide()?.reveal();
+        this._menu.toggle();
+    }
+
+    destroy() {
+        this._menu.destroy();
+        this.menu = null;
+        super.destroy();
+    }
+});
+
 const ResourcesButton = GObject.registerClass(
 class ResourcesButton extends PanelMenu.Button {
     _init() {
@@ -1302,7 +1355,7 @@ export default class GnozzardExtension extends Extension {
         this._settings = this.getSettings();
         this._signals = new SignalStore();
         this._watchedWindows = new Set();
-        this._applicationsMenuManager = new PopupMenu.PopupMenuManager(this);
+        this._applicationsMenuManager = Main.panel.menuManager;
         this._desktopStarted = false;
         this._previousTopPanelStyle = Main.panel?.get_style() ?? null;
         const activities = Main.panel.statusArea.activities?.container ??
@@ -1313,6 +1366,7 @@ export default class GnozzardExtension extends Extension {
             desktopWindows: new Set(),
         };
         this._panels = [];
+        this._tilingOwnership = new TilingOwnership(this._settings);
         this._applyClassicSettings();
         if (Main.actionMode === Shell.ActionMode.NONE) {
             this._signals.connect(Main.layoutManager, 'startup-complete', () =>
@@ -1325,7 +1379,7 @@ export default class GnozzardExtension extends Extension {
             this._settings,
             Meta.KeyBindingFlags.NONE,
             Shell.ActionMode.NORMAL,
-            () => this._primaryPanel()?.toggleApplications()
+            () => (this._systemApplications ?? this._primaryPanel())?.toggleApplications()
         );
         this._signals.connect(global.display, 'window-created', (_display, window) => {
             this._watchWindow(window);
@@ -1337,8 +1391,10 @@ export default class GnozzardExtension extends Extension {
             this._updatePanelsFocus());
         this._signals.connect(Shell.WindowTracker.get_default(), 'tracked-windows-changed', () =>
             this._updatePanelIcons());
-        this._signals.connect(global.window_manager, 'switch-workspace', () =>
-            this._refreshPanels());
+        this._signals.connect(global.window_manager, 'switch-workspace', () => {
+            this._syncBarLayout();
+            this._refreshPanels();
+        });
         this._signals.connect(Main.layoutManager, 'monitors-changed', () =>
             this._rebuildPanels());
         this._signals.connect(this._settings, 'changed::show-resources-button', () =>
@@ -1349,6 +1405,12 @@ export default class GnozzardExtension extends Extension {
             this._rebuildPanels());
         this._signals.connect(this._settings, 'changed::capped-task-buttons', () =>
             this._rebuildPanels());
+        this._signals.connect(this._settings, 'changed::auto-tile-windows', () =>
+            this._syncAutoTiler());
+        for (const key of ['taskbar-mode', 'swap-bars', 'tiling-disabled-workplaces'])
+            this._signals.connect(this._settings, `changed::${key}`, () => this._syncBarLayout());
+        this._signals.connect(Main.layoutManager.panelBox, 'notify::height', () =>
+            this._positionSystemBar());
     }
 
     _finishStartup() {
@@ -1369,19 +1431,83 @@ export default class GnozzardExtension extends Extension {
         if (this._desktopStarted)
             return;
         this._desktopStarted = true;
+        this._nativeWindowMenus = new NativeWindowMenus();
         Main.panel?.add_style_class_name('gnozzard-top-panel');
-        this._rebuildPanels();
         this._syncWorkspacesButton();
         this._syncResourcesButton();
+        this._syncAutoTiler();
+        this._workplaceEdges = new WorkplaceEdges(this._settings);
+    }
+
+    _syncAutoTiler() {
+        if (!this._desktopStarted)
+            return;
+        if (this._settings.get_boolean('auto-tile-windows'))
+            this._autoTiler ??= new AutoTiler(this._settings);
+        else {
+            this._autoTiler?.destroy();
+            this._autoTiler = null;
+        }
+        this._syncBarLayout();
+    }
+
+    _syncBarLayout() {
+        if (!this._desktopStarted)
+            return;
+        const tiling = Boolean(this._autoTiler?.isWorkspaceEnabled(
+            global.workspace_manager.get_active_workspace()));
+        const taskbar = showTaskbar(this._settings.get_string('taskbar-mode'), tiling);
+        const swapped = this._settings.get_boolean('swap-bars');
+        if (taskbar === this._showTaskbar && swapped === this._barsSwapped)
+            return;
+        this._showTaskbar = taskbar;
+        this._barsSwapped = swapped;
+        this._rebuildPanels();
+    }
+
+    _positionSystemBar() {
+        if (!this._desktopStarted)
+            return;
+        const monitor = Main.layoutManager.primaryMonitor;
+        if (!monitor)
+            return;
+        const box = Main.layoutManager.panelBox;
+        box.set_position(monitor.x,
+            this._barsSwapped ? monitor.y + monitor.height - box.height : monitor.y);
+        this._topBarAutoHide?.relayout();
+        this._systemApplications?._menu.relayout();
+    }
+
+    _menuHeight(monitorIndex) {
+        const monitor = Main.layoutManager.monitors[monitorIndex];
+        const systemHeight = monitor === Main.layoutManager.primaryMonitor ? Main.panel.height : 0;
+        return monitor.height - systemHeight - (this._showTaskbar ? PANEL_HEIGHT : 0);
     }
 
     _rebuildPanels() {
         if (!this._desktopStarted)
             return;
+        this._systemApplications?.destroy();
+        this._systemApplications = null;
         for (const panel of this._panels)
             panel.destroy();
+        this._panels = [];
+        this._topBarAutoHide?.destroy();
+        this._topBarAutoHide = null;
+        this._positionSystemBar();
+        const systemEdge = this._barsSwapped ? 'bottom' : 'top';
+        this._topBarAutoHide = new BarAutoHide(Main.layoutManager.panelBox, this._settings,
+            'autohide-top-bar', systemEdge, () => Main.layoutManager.primaryMonitor);
         const primaryIndex = Math.max(0, Main.layoutManager.monitors
             .indexOf(Main.layoutManager.primaryMonitor));
+        if (!this._showTaskbar) {
+            this._systemApplications = new SystemApplicationsButton(this._settings, primaryIndex,
+                this._applicationsMenuManager, systemEdge, () => this._menuHeight(primaryIndex),
+                () => this._topBarAutoHide);
+            Main.panel.addToStatusArea(APPLICATIONS_BUTTON_ROLE, this._systemApplications, 0, 'left');
+            this._settings.set_boolean('taskbar-present', false);
+            return;
+        }
         const monitorIndexes = this._settings.get_boolean('taskbars-all-displays')
             ? Main.layoutManager.monitors.map((_monitor, index) => index)
             : [primaryIndex];
@@ -1392,8 +1518,12 @@ export default class GnozzardExtension extends Extension {
                 this._panelState,
                 this._applicationsMenuManager,
                 () => this._refreshPanels(),
-                source => this._syncPanelOrder(source)
+                source => this._syncPanelOrder(source),
+                this._barsSwapped ? 'top' : 'bottom',
+                () => this._menuHeight(index)
             ));
+        // Settings reflects the actual bars, including per-workplace tiling.
+        this._settings.set_boolean('taskbar-present', this._panels.length > 0);
     }
 
     _primaryPanel() {
@@ -1524,7 +1654,7 @@ export default class GnozzardExtension extends Extension {
         if (!this._desktopStarted)
             return;
         this._workspacesButton?.destroy();
-        this._workspacesButton = new WorkspacesButton();
+        this._workspacesButton = new WorkspacesButton(() => this._autoTiler);
         const activities = Main.panel.statusArea.activities?.container ??
             Main.panel.statusArea.activities;
         if (activities)
@@ -1577,11 +1707,24 @@ export default class GnozzardExtension extends Extension {
     disable() {
         Main.wm.removeKeybinding('toggle-applications');
         this._signals?.clear();
+        this._nativeWindowMenus?.destroy();
+        this._nativeWindowMenus = null;
+        this._systemApplications?.destroy();
+        this._systemApplications = null;
+        this._autoTiler?.destroy();
+        this._autoTiler = null;
+        this._workplaceEdges?.destroy();
+        this._workplaceEdges = null;
+        this._topBarAutoHide?.destroy();
+        this._topBarAutoHide = null;
+        this._tilingOwnership?.destroy();
+        this._tilingOwnership = null;
         this._watchedWindows?.clear();
         this._watchedWindows = null;
         for (const panel of this._panels ?? [])
             panel.destroy();
         this._panels = [];
+        this._settings?.set_boolean('taskbar-present', false);
         this._applicationsMenuManager = null;
         this._panelState = null;
         if (Main.panel) {
@@ -1598,6 +1741,9 @@ export default class GnozzardExtension extends Extension {
         if (activities)
             activities.visible = this._previousActivitiesVisible ?? true;
         this._previousActivitiesVisible = null;
+        this._barsSwapped = false;
+        this._showTaskbar = undefined;
+        this._positionSystemBar();
         this._desktopStarted = false;
         this._restoreSettings();
         this._settings = null;
