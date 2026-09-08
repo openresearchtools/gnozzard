@@ -13,47 +13,6 @@ Gnozzard also supports full optional auto-tiling and offers 12 distinct desktop 
 
 ![Gnozzard settings with 12 desktop customisation controls](docs/showcase/gnozzard-settings.png)
 
-The panel provides:
-
-- a tall, upward-opening, scrollable Applications menu;
-- pinned applications at the menu's bottom edge;
-- one task button per window (never grouped), with capped widths by default and per-display 5-window paging when a taskbar is full;
-- click-to-focus/minimise task buttons;
-- task-button actions for graceful Close and red Force Kill;
-- task-button actions for moving a window to an existing or new workplace;
-- drag-to-reorder task buttons with one shared order on every monitor;
-- the same complete taskbar and open-window list on every connected monitor;
-- a small, text-free Show Desktop button;
-- application actions for pinning and creating desktop shortcuts;
-- a native Gnozzard app for the extension, taskbars, tray icons and desktop items;
-- top-bar workplace buttons, with on-demand creation and native GNOME switching;
-- an option to show the current workplace or every workplace on the taskbar;
-- minimise-button defaults while the extension is enabled.
-
-Gnozzard brings a classic desktop model to modern GNOME, with one taskbar entry
-per window, a simple searchable application list, native GNOME workspaces, and
-continued support for GNOME's top bar, system controls, and tray applications.
-
-The `gnozzard` package also installs Desktop Icons NG, AppIndicator tray support,
-the native Gnozzard app, native AppImage and portable application support,
-AppImage MIME integration, and Nautilus actions for launching an AppImage or
-adding it to Applications with one click. Local `.desktop` launchers can also
-be added to Applications, while local `.deb` packages get a direct **Install
-Debian Package…** action. Its required `gnozzard-resources` companion package
-contains the lightly adapted GPL-3.0-or-later Resources 1.8.0 system monitor.
-It remains visibly named **Resources**, but uses Gnozzard-specific internal IDs
-and executable names so it can coexist with a distribution's stock `resources`
-package.
-
-## Supported systems
-
-Matching `gnozzard` and `gnozzard-resources` packages are published for amd64
-and arm64. The amd64 packages are tested on
-Debian 13 with GNOME Shell 48, Ubuntu 24.04 LTS with GNOME Shell 46, and Ubuntu
-26.04 LTS with GNOME Shell 50. Its extension metadata declares Shell 46–50 and
-the bundled Resources fork is built against the libadwaita 1.5 baseline used by
-Ubuntu 24.04.
-
 ## Install the package
 
 For the first Open Research Tools installation on a system, this one command
@@ -81,6 +40,26 @@ existing extension preference keep their own choices; no login-time process
 rewrites extension state. For an existing profile that has different choices,
 open Gnozzard once and enable Gnozzard, Desktop Icons and AppIndicator there;
 disable Ubuntu Dock in the same window if it still appears.
+
+The `gnozzard` package also installs Desktop Icons NG, AppIndicator tray support,
+the native Gnozzard app, native AppImage and portable application support,
+AppImage MIME integration, and Nautilus actions for launching an AppImage or
+adding it to Applications with one click. Local `.desktop` launchers can also
+be added to Applications, while local `.deb` packages get a direct **Install
+Debian Package…** action. Its required `gnozzard-resources` companion package
+contains the lightly adapted GPL-3.0-or-later Resources 1.8.0 system monitor.
+It remains visibly named **Resources**, but uses Gnozzard-specific internal IDs
+and executable names so it can coexist with a distribution's stock `resources`
+package.
+
+## Supported systems
+
+Matching `gnozzard` and `gnozzard-resources` packages are published for amd64
+and arm64. The amd64 packages are tested on
+Debian 13 with GNOME Shell 48, Ubuntu 24.04 LTS with GNOME Shell 46, and Ubuntu
+26.04 LTS with GNOME Shell 50. Its extension metadata declares Shell 46–50 and
+the bundled Resources fork is built against the libadwaita 1.5 baseline used by
+Ubuntu 24.04.
 
 ## Repository layout
 
